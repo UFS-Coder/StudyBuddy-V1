@@ -13,7 +13,8 @@ import {
   Calendar,
   CheckCircle,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  Palette
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -28,6 +29,8 @@ type Subtopic = Tables<'subtopics'>;
 type LearningObjective = Tables<'learning_objectives'>;
 type ResourceAttachment = Tables<'resource_attachments'>;
 type SyllabusMilestone = Tables<'syllabus_milestones'>;
+type Theme = Tables<'themes'>;
+type Subject = Tables<'subjects'>;
 
 interface CurriculumDashboardProps {
   subjectId: string;
@@ -49,11 +52,13 @@ interface CurriculumStats {
 }
 
 export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardProps) {
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [topics, setTopics] = useState<SyllabusTopic[]>([]);
   const [subtopics, setSubtopics] = useState<Subtopic[]>([]);
   const [objectives, setObjectives] = useState<LearningObjective[]>([]);
   const [resources, setResources] = useState<ResourceAttachment[]>([]);
   const [milestones, setMilestones] = useState<SyllabusMilestone[]>([]);
+  const [themes, setThemes] = useState<Theme[]>([]);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [selectedSubtopicId, setSelectedSubtopicId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,8 +89,13 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
     try {
       setIsLoading(true);
       
-      // First fetch topics for this subject
-      const topicsRes = await supabase.from('syllabus_topics').select('*').eq('subject_id', subjectId).eq('user_id', userId).order('order_index');
+      // First fetch themes and topics for this subject
+      const [themesRes, topicsRes] = await Promise.all([
+        supabase.from('themes').select('*').eq('subject_id', subjectId).eq('user_id', userId).order('order_index'),
+        supabase.from('syllabus_topics').select('*').eq('subject_id', subjectId).eq('user_id', userId).order('order_index')
+      ]);
+      
+      if (themesRes.error) throw themesRes.error;
       if (topicsRes.error) throw topicsRes.error;
       
       const topicIds = (topicsRes.data || []).map(topic => topic.id);
@@ -108,6 +118,7 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
       if (resourcesRes.error) throw resourcesRes.error;
       if (milestonesRes.error) throw milestonesRes.error;
 
+      setThemes(themesRes.data || []);
       setTopics(topicsRes.data || []);
       setSubtopics(subtopicsRes.data || []);
       setObjectives(objectivesRes.data || []);
@@ -173,6 +184,34 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
   const getOverallProgress = () => {
     if (stats.totalSubtopics === 0) return 0;
     return (stats.completedSubtopics / stats.totalSubtopics) * 100;
+  };
+
+  const getTopicsByTheme = () => {
+    const topicsWithThemes = topics.filter(topic => topic.theme_id);
+    const topicsWithoutThemes = topics.filter(topic => !topic.theme_id);
+    
+    const themeGroups = themes.map(theme => ({
+      theme,
+      topics: topicsWithThemes.filter(topic => topic.theme_id === theme.id)
+    })).filter(group => group.topics.length > 0);
+    
+    return {
+      themeGroups,
+      ungroupedTopics: topicsWithoutThemes
+    };
+  };
+
+  const getThemeProgress = (themeId: string) => {
+    const themeTopics = topics.filter(topic => topic.theme_id === themeId);
+    if (themeTopics.length === 0) return 0;
+    
+    const themeSubtopics = subtopics.filter(subtopic => 
+      themeTopics.some(topic => topic.id === subtopic.topic_id)
+    );
+    
+    if (themeSubtopics.length === 0) return 0;
+    const completed = themeSubtopics.filter(s => s.completed).length;
+    return (completed / themeSubtopics.length) * 100;
   };
 
   if (isLoading) {
@@ -264,76 +303,198 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {topics.map((topic) => {
-              const progress = getTopicProgress(topic.id);
-              const topicSubtopics = subtopics.filter(s => s.topic_id === topic.id);
-              const completedSubtopics = topicSubtopics.filter(s => s.completed).length;
+          <div className="space-y-4">
+            {(() => {
+              const { themeGroups, ungroupedTopics } = getTopicsByTheme();
               
               return (
-                <div
-                  key={topic.id}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                    selectedTopicId === topic.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
-                  }`}
-                  onClick={() => setSelectedTopicId(selectedTopicId === topic.id ? null : topic.id)}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium">{topic.title}</h3>
-                    <Badge variant="outline">
-                      {completedSubtopics}/{topicSubtopics.length}
-                    </Badge>
-                  </div>
-                  {topic.description && (
-                    <p className="text-sm text-gray-600 mb-2">{topic.description}</p>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <Progress value={progress} className="flex-1 h-2" />
-                    <span className="text-sm text-gray-500">{Math.round(progress)}%</span>
-                  </div>
-                  
-                  {/* Subtopics */}
-                  {selectedTopicId === topic.id && topicSubtopics.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      {topicSubtopics.map((subtopic) => (
-                        <div
-                          key={subtopic.id}
-                          className={`p-3 border rounded cursor-pointer transition-colors ${
-                            selectedSubtopicId === subtopic.id ? 'border-green-500 bg-green-50' : 'hover:bg-gray-50'
-                          } ${
-                            subtopic.completed ? 'bg-green-100 border-green-300' : ''
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedSubtopicId(selectedSubtopicId === subtopic.id ? null : subtopic.id);
-                          }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className={`h-4 w-4 ${
-                              subtopic.completed ? 'text-green-600' : 'text-gray-400'
-                            }`} />
-                            <span className={subtopic.completed ? 'line-through text-gray-500' : ''}>
-                              {subtopic.title}
-                            </span>
+                <>
+                  {/* Themed Topics */}
+                  {themeGroups.map(({ theme, topics: themeTopics }) => {
+                    const themeProgress = getThemeProgress(theme.id);
+                    const themeSubtopics = subtopics.filter(subtopic => 
+                      themeTopics.some(topic => topic.id === subtopic.topic_id)
+                    );
+                    const completedThemeSubtopics = themeSubtopics.filter(s => s.completed).length;
+                    
+                    return (
+                      <div key={theme.id} className="border rounded-lg p-4 space-y-3">
+                        {/* Theme Header */}
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-4 h-4 rounded-full" 
+                            style={{ backgroundColor: theme.color || '#6B7280' }}
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <h3 className="font-semibold text-lg flex items-center gap-2">
+                                <Palette className="h-4 w-4" />
+                                {theme.title}
+                              </h3>
+                              <Badge variant="secondary">
+                                {completedThemeSubtopics}/{themeSubtopics.length} subtopics
+                              </Badge>
+                            </div>
+                            {theme.description && (
+                              <p className="text-sm text-gray-600 mb-2">{theme.description}</p>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <Progress value={themeProgress} className="flex-1 h-2" />
+                              <span className="text-sm text-gray-500">{Math.round(themeProgress)}%</span>
+                            </div>
                           </div>
-                          {subtopic.description && (
-                            <p className="text-sm text-gray-600 mt-1 ml-6">{subtopic.description}</p>
-                          )}
                         </div>
-                      ))}
+                        
+                        {/* Topics within Theme */}
+                        <div className="ml-6 space-y-3">
+                          {themeTopics.map((topic) => {
+                            const progress = getTopicProgress(topic.id);
+                            const topicSubtopics = subtopics.filter(s => s.topic_id === topic.id);
+                            const completedSubtopics = topicSubtopics.filter(s => s.completed).length;
+                            
+                            return (
+                              <div
+                                key={topic.id}
+                                className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                                  selectedTopicId === topic.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+                                }`}
+                                onClick={() => setSelectedTopicId(selectedTopicId === topic.id ? null : topic.id)}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="font-medium">{topic.title}</h4>
+                                  <Badge variant="outline">
+                                    {completedSubtopics}/{topicSubtopics.length}
+                                  </Badge>
+                                </div>
+                                {topic.description && (
+                                  <p className="text-sm text-gray-600 mb-2">{topic.description}</p>
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <Progress value={progress} className="flex-1 h-2" />
+                                  <span className="text-sm text-gray-500">{Math.round(progress)}%</span>
+                                </div>
+                                
+                                {/* Subtopics */}
+                                {selectedTopicId === topic.id && topicSubtopics.length > 0 && (
+                                  <div className="mt-3 space-y-2">
+                                    {topicSubtopics.map((subtopic) => (
+                                      <div
+                                        key={subtopic.id}
+                                        className={`p-3 border rounded cursor-pointer transition-colors ${
+                                          selectedSubtopicId === subtopic.id ? 'border-green-500 bg-green-50' : 'hover:bg-gray-50'
+                                        } ${
+                                          subtopic.completed ? 'bg-green-100 border-green-300' : ''
+                                        }`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedSubtopicId(selectedSubtopicId === subtopic.id ? null : subtopic.id);
+                                        }}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <CheckCircle className={`h-4 w-4 ${
+                                            subtopic.completed ? 'text-green-600' : 'text-gray-400'
+                                          }`} />
+                                          <span className={subtopic.completed ? 'line-through text-gray-500' : ''}>
+                                            {subtopic.title}
+                                          </span>
+                                        </div>
+                                        {subtopic.description && (
+                                          <p className="text-sm text-gray-600 mt-1 ml-6">{subtopic.description}</p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {/* Ungrouped Topics */}
+                  {ungroupedTopics.length > 0 && (
+                    <div className="space-y-3">
+                      {ungroupedTopics.length > 0 && themeGroups.length > 0 && (
+                        <div className="border-t pt-4">
+                          <h3 className="font-semibold text-lg mb-3 text-gray-700">Other Topics</h3>
+                        </div>
+                      )}
+                      {ungroupedTopics.map((topic) => {
+                        const progress = getTopicProgress(topic.id);
+                        const topicSubtopics = subtopics.filter(s => s.topic_id === topic.id);
+                        const completedSubtopics = topicSubtopics.filter(s => s.completed).length;
+                        
+                        return (
+                          <div
+                            key={topic.id}
+                            className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                              selectedTopicId === topic.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+                            }`}
+                            onClick={() => setSelectedTopicId(selectedTopicId === topic.id ? null : topic.id)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="font-medium">{topic.title}</h3>
+                              <Badge variant="outline">
+                                {completedSubtopics}/{topicSubtopics.length}
+                              </Badge>
+                            </div>
+                            {topic.description && (
+                              <p className="text-sm text-gray-600 mb-2">{topic.description}</p>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <Progress value={progress} className="flex-1 h-2" />
+                              <span className="text-sm text-gray-500">{Math.round(progress)}%</span>
+                            </div>
+                            
+                            {/* Subtopics */}
+                            {selectedTopicId === topic.id && topicSubtopics.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                {topicSubtopics.map((subtopic) => (
+                                  <div
+                                    key={subtopic.id}
+                                    className={`p-3 border rounded cursor-pointer transition-colors ${
+                                      selectedSubtopicId === subtopic.id ? 'border-green-500 bg-green-50' : 'hover:bg-gray-50'
+                                    } ${
+                                      subtopic.completed ? 'bg-green-100 border-green-300' : ''
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedSubtopicId(selectedSubtopicId === subtopic.id ? null : subtopic.id);
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <CheckCircle className={`h-4 w-4 ${
+                                        subtopic.completed ? 'text-green-600' : 'text-gray-400'
+                                      }`} />
+                                      <span className={subtopic.completed ? 'line-through text-gray-500' : ''}>
+                                        {subtopic.title}
+                                      </span>
+                                    </div>
+                                    {subtopic.description && (
+                                      <p className="text-sm text-gray-600 mt-1 ml-6">{subtopic.description}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
-                </div>
+                  
+                  {topics.length === 0 && (
+                    <div className="text-center py-6 text-gray-500">
+                      <BookOpen className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>No topics found</p>
+                      <p className="text-sm">Topics are managed in the Syllabus section</p>
+                    </div>
+                  )}
+                </>
               );
-            })}
-            
-            {topics.length === 0 && (
-              <div className="text-center py-6 text-gray-500">
-                <BookOpen className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>No topics found</p>
-                <p className="text-sm">Topics are managed in the Syllabus section</p>
-              </div>
-            )}
+            })()}
           </div>
         </CardContent>
       </Card>

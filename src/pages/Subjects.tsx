@@ -10,6 +10,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { useSubjects } from "@/hooks/use-subjects";
 import { SubjectDetail } from "@/components/subjects/subject-detail";
 import { BookOpen, Plus, Target } from "lucide-react";
+import { formatGrade, getGradeColorClass, getGermanGradeName } from "@/lib/grade-calculations";
 
 const Subjects = () => {
   const { language, setLanguage, t } = useTranslations();
@@ -55,7 +56,7 @@ const Subjects = () => {
             </div>
 
             {/* Subjects Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {subjects.map((subject) => (
                 <Card key={subject.id} className="hover:shadow-lg transition-shadow cursor-pointer"
                       onClick={() => setSelectedSubject(subject.id)}>
@@ -91,8 +92,11 @@ const Subjects = () => {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">Aktuelle Note:</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-lg font-bold" style={{ color: subject.color }}>
-                            {subject.current_grade}%
+                          <span className={`text-lg font-bold ${getGradeColorClass(subject.current_grade).split(' ')[0]}`}>
+                            {formatGrade(subject.current_grade)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            ({getGermanGradeName(subject.current_grade)})
                           </span>
                         </div>
                       </div>
@@ -104,8 +108,11 @@ const Subjects = () => {
                         <span className="text-sm font-medium">Ziel:</span>
                         <div className="flex items-center gap-2">
                           <Target className="w-4 h-4" style={{ color: subject.color }} />
-                          <span className="text-sm font-medium">
-                            {subject.target_grade}%
+                          <span className={`text-sm font-medium ${getGradeColorClass(subject.target_grade).split(' ')[0]}`}>
+                            {formatGrade(subject.target_grade)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            ({getGermanGradeName(subject.target_grade)})
                           </span>
                         </div>
                       </div>

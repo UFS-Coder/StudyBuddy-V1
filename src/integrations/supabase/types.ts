@@ -398,6 +398,7 @@ export type Database = {
           id: string
           order_index: number | null
           subject_id: string
+          theme_id: string | null
           title: string
           updated_at: string
           user_id: string
@@ -408,11 +409,49 @@ export type Database = {
           id?: string
           order_index?: number | null
           subject_id: string
+          theme_id?: string | null
           title: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          order_index?: number | null
+          subject_id?: string
+          theme_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      themes: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          order_index: number | null
+          subject_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          order_index?: number | null
+          subject_id: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
           created_at?: string
           description?: string | null
           id?: string

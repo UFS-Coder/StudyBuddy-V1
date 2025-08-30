@@ -31,7 +31,8 @@ export const SubjectManager = () => {
     room: "",
     color: COLORS[0],
     credits: 3,
-    target_grade: 80,
+    target_grade: 2.0,
+    course_type: "GK" as "LK" | "GK",
   });
 
   const subjectMutation = useMutation({
@@ -46,6 +47,7 @@ export const SubjectManager = () => {
         color: data.color,
         credits: data.credits,
         target_grade: data.target_grade,
+        course_type: data.course_type,
       };
 
       if (data.id) {
@@ -113,7 +115,8 @@ export const SubjectManager = () => {
       room: "",
       color: COLORS[0],
       credits: 3,
-      target_grade: 80,
+      target_grade: 2.0,
+      course_type: "GK",
     });
   };
 
@@ -125,7 +128,8 @@ export const SubjectManager = () => {
       room: subject.room || "",
       color: subject.color,
       credits: subject.credits,
-      target_grade: subject.target_grade || 80,
+      target_grade: subject.target_grade || 2.0,
+      course_type: subject.course_type || "GK",
     });
     setIsDialogOpen(true);
   };
@@ -186,7 +190,7 @@ export const SubjectManager = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="credits">Credits</Label>
                   <Input
@@ -200,15 +204,31 @@ export const SubjectManager = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="target_grade">Target Grade</Label>
+                  <Label htmlFor="target_grade">Zielnote (1-6)</Label>
                   <Input
                     id="target_grade"
                     type="number"
-                    min="0"
-                    max="100"
+                    min="1"
+                    max="6"
+                    step="0.1"
                     value={formData.target_grade}
-                    onChange={(e) => setFormData(prev => ({ ...prev, target_grade: parseInt(e.target.value) || 80 }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, target_grade: parseFloat(e.target.value) || 2.0 }))}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="course_type">Course Type *</Label>
+                  <Select value={formData.course_type} onValueChange={(value: "LK" | "GK") => 
+                    setFormData(prev => ({ ...prev, course_type: value }))
+                  }>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select course type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GK">GK (Grundkurs)</SelectItem>
+                      <SelectItem value="LK">LK (Leistungskurs)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -280,12 +300,12 @@ export const SubjectManager = () => {
               <div className="flex justify-between text-sm">
                 <span>Credits: {subject.credits}</span>
                 {subject.target_grade && (
-                  <span>Target: {subject.target_grade}%</span>
+                  <span>Zielnote: {subject.target_grade}</span>
                 )}
               </div>
               {subject.current_grade && (
                 <div className="text-sm">
-                  Current: <span className="font-medium">{subject.current_grade}%</span>
+                  Aktuelle Note: <span className="font-medium">{subject.current_grade}</span>
                 </div>
               )}
             </CardContent>

@@ -12,6 +12,7 @@ export interface Subject {
   current_grade: number | null;
   target_grade: number | null;
   credits: number;
+  course_type: 'LK' | 'GK';
   created_at: string;
   updated_at: string;
 }

@@ -64,3 +64,4 @@ supabase/.temp/
 # Temporary folders
 tmp/
 temp/
+.vercel

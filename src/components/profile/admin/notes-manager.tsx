@@ -81,7 +81,7 @@ export const NotesManager = () => {
         content: data.content,
         tags: data.tags ? data.tags.split(",").map(tag => tag.trim()).filter(Boolean) : [],
         time_period: data.time_period,
-        subject_id: data.subject_id || null,
+        subject_id: data.subject_id === "general" ? null : data.subject_id || null,
       };
 
       if (data.id) {
@@ -170,8 +170,10 @@ export const NotesManager = () => {
       note.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
       note.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    const matchesPeriod = !selectedPeriod || note.time_period === selectedPeriod;
-    const matchesSubject = !selectedSubject || note.subject_id === selectedSubject;
+    const matchesPeriod = !selectedPeriod || selectedPeriod === "all" || note.time_period === selectedPeriod;
+    const matchesSubject = !selectedSubject || selectedSubject === "all" || 
+      (selectedSubject === "general" && !note.subject_id) || 
+      note.subject_id === selectedSubject;
     
     return matchesSearch && matchesPeriod && matchesSubject;
   });
@@ -230,7 +232,7 @@ export const NotesManager = () => {
                       <SelectValue placeholder="Select subject" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">General</SelectItem>
+                      <SelectItem value="general">General</SelectItem>
                       {subjects.map(subject => (
                         <SelectItem key={subject.id} value={subject.id}>
                           {subject.name}
@@ -300,7 +302,7 @@ export const NotesManager = () => {
                 <SelectValue placeholder="All periods" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All periods</SelectItem>
+                <SelectItem value="all">All periods</SelectItem>
                 {TIME_PERIODS.map(period => (
                   <SelectItem key={period.value} value={period.value}>
                     {period.label}
@@ -313,7 +315,7 @@ export const NotesManager = () => {
                 <SelectValue placeholder="All subjects" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All subjects</SelectItem>
+                <SelectItem value="all">All subjects</SelectItem>
                 <SelectItem value="general">General</SelectItem>
                 {subjects.map(subject => (
                   <SelectItem key={subject.id} value={subject.id}>

@@ -6,11 +6,13 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { SubjectProgressItem } from "@/components/dashboard/subject-progress-item";
 import { FeatureSuggestions } from "@/components/dashboard/feature-suggestions";
 import { BottomNavigation } from "@/components/dashboard/bottom-navigation";
+import { DurchschnittDashboard } from "@/components/grades/durchschnitt-dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTranslations } from "@/hooks/use-translations";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
 import { useSubjects } from "@/hooks/use-subjects";
+import { useGradesBySubject } from "@/hooks/use-grades";
 import { Button } from "@/components/ui/button";
 import { LogIn } from "lucide-react";
 
@@ -18,6 +20,7 @@ const Index = () => {
   const { user, loading } = useAuth();
   const { data: profile } = useProfile();
   const { data: subjects = [] } = useSubjects();
+  const { data: gradesBySubject = {} } = useGradesBySubject();
   const { language, setLanguage, t } = useTranslations();
   const navigate = useNavigate();
 
@@ -67,14 +70,14 @@ const Index = () => {
     ? subjects.reduce((sum, subject) => sum + (subject.current_grade || 0), 0) / subjects.filter(s => s.current_grade).length
     : 0;
   const progress = subjects.length > 0 
-    ? (subjects.filter(s => s.current_grade && s.current_grade >= 50).length / subjects.length) * 100
+    ? (subjects.filter(s => s.current_grade && s.current_grade <= 3.0).length / subjects.length) * 100
     : 0;
 
   // Use real subjects data for progress display
   const subjectProgress = subjects.map(subject => ({
     name: subject.name,
     teacher: subject.teacher || "TBA",
-    progress: subject.current_grade || 0,
+    progress: subject.current_grade ? Math.round(Math.max(0, Math.min(100, ((6 - subject.current_grade) / 5) * 100))) : 0,
     openTasks: Math.floor(Math.random() * 3) // Mock data for now
   }));
 
@@ -92,15 +95,7 @@ const Index = () => {
         <WelcomeBanner studentName={studentName} t={t} />
         
         {/* Metrics Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          <MetricCard
-            title={t.averageGradeFull}
-            value={averageGrade ? `${averageGrade.toFixed(1)}%` : "N/A"}
-            change="+2.3%"
-            changeType="positive"
-            icon={<span className="h-4 w-4">📊</span>}
-            iconColor="text-success"
-          />
+        <div className="grid grid-cols-3 gap-4">
           <MetricCard
             title={t.curriculumProgress}
             value={`${Math.round(progress)}%`}
@@ -127,12 +122,20 @@ const Index = () => {
           />
         </div>
         
+        {/* Durchschnittsnote Dashboard */}
+        <DurchschnittDashboard 
+          subjectsWithGrades={subjects.map(subject => ({
+            ...subject,
+            grades: gradesBySubject[subject.id] || []
+          }))}
+        />
+        
         {/* Subject Progress */}
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-foreground">
             {t.subjectProgress}
           </h2>
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {subjectProgress.length > 0 ? (
               subjectProgress.map((subject, index) => (
                 <SubjectProgressItem key={index} subject={subject} t={t} />

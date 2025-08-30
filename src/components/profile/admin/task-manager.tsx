@@ -87,7 +87,7 @@ export const TaskManager = () => {
           due_date: data.due_date || null,
           priority: data.priority,
           time_period: data.time_period,
-          subject_id: data.subject_id || null,
+          subject_id: data.subject_id === "general" ? null : data.subject_id || null,
         }]);
       
       if (error) throw error;
@@ -203,7 +203,7 @@ export const TaskManager = () => {
                       <SelectValue placeholder="Select subject" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">General</SelectItem>
+                      <SelectItem value="general">General</SelectItem>
                       {subjects.map(subject => (
                         <SelectItem key={subject.id} value={subject.id}>
                           {subject.name}
