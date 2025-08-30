@@ -84,16 +84,25 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
     try {
       setIsLoading(true);
       
-      // Fetch all data in parallel
-      const [topicsRes, subtopicsRes, objectivesRes, resourcesRes, milestonesRes] = await Promise.all([
-        supabase.from('syllabus_topics').select('*').eq('subject_id', subjectId).eq('user_id', userId).order('order_index'),
-        supabase.from('subtopics').select('*').eq('user_id', userId).order('order_index'),
+      // First fetch topics for this subject
+      const topicsRes = await supabase.from('syllabus_topics').select('*').eq('subject_id', subjectId).eq('user_id', userId).order('order_index');
+      if (topicsRes.error) throw topicsRes.error;
+      
+      const topicIds = (topicsRes.data || []).map(topic => topic.id);
+      
+      // Fetch all data in parallel, filtering subtopics by topic IDs
+       const [subtopicsRes, objectivesRes, resourcesRes, milestonesRes] = await Promise.all([
+         topicIds.length > 0 
+           ? supabase.from('subtopics').select('*').in('topic_id', topicIds).eq('user_id', userId).order('order_index')
+           : Promise.resolve({ data: [], error: null }),
         supabase.from('learning_objectives').select('*').eq('user_id', userId).order('order_index'),
         supabase.from('resource_attachments').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
-        supabase.from('syllabus_milestones').select('*').eq('subject_id', subjectId).eq('user_id', userId).order('deadline'),
+        supabase.from('syllabus_milestones').select('*').eq('subject_id', subjectId).eq('user_id', userId).order('target_date'),
       ]);
+      
+      // Get subtopic IDs for filtering objectives and resources
+      const subtopicIds = (subtopicsRes.data || []).map(subtopic => subtopic.id);
 
-      if (topicsRes.error) throw topicsRes.error;
       if (subtopicsRes.error) throw subtopicsRes.error;
       if (objectivesRes.error) throw objectivesRes.error;
       if (resourcesRes.error) throw resourcesRes.error;
@@ -130,10 +139,10 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
 
     const now = new Date();
     const upcomingMilestones = milestones.filter(m => 
-      !m.completed && m.deadline && isAfter(new Date(m.deadline), now)
+      !m.completed && m.target_date && isAfter(new Date(m.target_date), now)
     );
     const overdueMilestones = milestones.filter(m => 
-      !m.completed && m.deadline && isBefore(new Date(m.deadline), now)
+      !m.completed && m.target_date && isBefore(new Date(m.target_date), now)
     );
 
     setStats({

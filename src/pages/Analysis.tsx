@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { Navbar } from "@/components/dashboard/navbar";
 import { BottomNavigation } from "@/components/dashboard/bottom-navigation";
 import { useTranslations } from "@/hooks/use-translations";
 import { useAuth } from "@/hooks/use-auth";
@@ -22,96 +23,79 @@ import {
 } from "lucide-react";
 
 const Analysis = () => {
-  const { t } = useTranslations();
+  const { t, language, setLanguage } = useTranslations();
   const { user } = useAuth();
   const { data: profile } = useProfile();
   const { data: subjects } = useSubjects();
-  const [selectedPeriod, setSelectedPeriod] = useState("semester");
-  const [selectedSubject, setSelectedSubject] = useState("all");
+  const [selectedPeriod, setSelectedPeriod] = useState("month");
 
-  const studentName = profile?.display_name || user?.email?.split("@")[0] || "Student";
+  const studentName = profile?.display_name || user?.email?.split('@')[0] || 'Student';
 
-  // Mock analytics data - in real app this would come from a hook
+  // Mock analytics data
   const mockAnalytics = {
     overallGPA: 2.3,
     trend: "up",
-    trendPercentage: 8.5,
-    totalCredits: 32,
-    completedCredits: 24,
-    subjectPerformance: [
-      {
-        id: "math",
-        name: "Mathematik",
-        currentGrade: 2.1,
-        targetGrade: 1.8,
-        trend: "up",
-        progress: 75,
-        credits: 5,
-        status: "on_track"
-      },
-      {
-        id: "physics",
-        name: "Physik",
-        currentGrade: 2.8,
-        targetGrade: 2.0,
-        trend: "down",
-        progress: 60,
-        credits: 5,
-        status: "needs_attention"
-      },
-      {
-        id: "chemistry",
-        name: "Chemie",
-        currentGrade: 1.9,
-        targetGrade: 2.0,
-        trend: "stable",
-        progress: 85,
-        credits: 4,
-        status: "excellent"
-      },
-      {
-        id: "biology",
-        name: "Biologie",
-        currentGrade: 2.5,
-        targetGrade: 2.2,
-        trend: "up",
-        progress: 70,
-        credits: 4,
-        status: "on_track"
-      }
-    ],
+    completedCredits: 45,
+    totalCredits: 180,
+    completedAssignments: 23,
+    totalAssignments: 28,
+    upcomingDeadlines: 5,
     monthlyProgress: [
-      { month: "Sep", gpa: 2.8 },
-      { month: "Okt", gpa: 2.6 },
+      { month: "Sep", gpa: 2.1 },
+      { month: "Okt", gpa: 2.2 },
       { month: "Nov", gpa: 2.4 },
       { month: "Dez", gpa: 2.3 },
-      { month: "Jan", gpa: 2.3 }
     ],
-    upcomingDeadlines: 3,
-    completedAssignments: 18,
-    totalAssignments: 22
+    subjectPerformance: [
+      {
+        id: 1,
+        name: "Mathematik",
+        currentGrade: 2.0,
+        targetGrade: 1.7,
+        progress: 75,
+        status: "on_track",
+        assignments: 8,
+        completedAssignments: 6
+      },
+      {
+        id: 2,
+        name: "Physik",
+        currentGrade: 2.7,
+        targetGrade: 2.3,
+        progress: 60,
+        status: "behind",
+        assignments: 6,
+        completedAssignments: 3
+      },
+      {
+        id: 3,
+        name: "Informatik",
+        currentGrade: 1.8,
+        targetGrade: 1.5,
+        progress: 90,
+        status: "ahead",
+        assignments: 10,
+        completedAssignments: 9
+      }
+    ]
   };
 
   const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case "up":
-        return <TrendingUp className="w-4 h-4 text-green-600" />;
-      case "down":
-        return <TrendingDown className="w-4 h-4 text-red-600" />;
-      default:
-        return <div className="w-4 h-4 bg-gray-400 rounded-full" />;
+    if (trend === "up") {
+      return <TrendingUp className="w-4 h-4 text-green-600" />;
+    } else if (trend === "down") {
+      return <TrendingDown className="w-4 h-4 text-red-600" />;
     }
+    return null;
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "excellent":
+      case "ahead":
         return "text-green-600";
       case "on_track":
         return "text-blue-600";
-      case "needs_attention":
-        return "text-orange-600";
-      case "critical":
+      case "behind":
         return "text-red-600";
       default:
         return "text-gray-600";
@@ -120,30 +104,36 @@ const Analysis = () => {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "excellent":
-        return <Award className="w-4 h-4 text-green-600" />;
+      case "ahead":
+        return <CheckCircle className="w-4 h-4 text-green-600" />;
       case "on_track":
-        return <CheckCircle className="w-4 h-4 text-blue-600" />;
-      case "needs_attention":
-        return <AlertTriangle className="w-4 h-4 text-orange-600" />;
-      case "critical":
+        return <Target className="w-4 h-4 text-blue-600" />;
+      case "behind":
         return <AlertTriangle className="w-4 h-4 text-red-600" />;
       default:
-        return <div className="w-4 h-4 bg-gray-400 rounded-full" />;
+        return null;
     }
   };
 
   const getGradeColor = (grade: number) => {
-    if (grade <= 2.0) return "text-green-600";
-    if (grade <= 3.0) return "text-yellow-600";
+    if (grade <= 1.5) return "text-green-600";
+    if (grade <= 2.5) return "text-blue-600";
+    if (grade <= 3.5) return "text-yellow-600";
     return "text-red-600";
   };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground p-6">
-        <div className="container mx-auto">
+      <Navbar 
+        language={language} 
+        onLanguageChange={setLanguage} 
+        studentName={studentName}
+        t={t} 
+      />
+      
+      <div className="container mx-auto px-4 py-6 pb-20">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground p-6 rounded-lg mb-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -168,9 +158,7 @@ const Analysis = () => {
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="container mx-auto p-6">
         {/* Overview Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
@@ -283,21 +271,21 @@ const Analysis = () => {
                 <div key={subject.id} className="p-4 border rounded-lg">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <h3 className="font-medium">{subject.name}</h3>
-                      <Badge variant="outline">{subject.credits} Credits</Badge>
-                      {getStatusIcon(subject.status)}
+                      <h3 className="font-semibold">{subject.name}</h3>
+                      <Badge variant="outline" className={getStatusColor(subject.status)}>
+                        {getStatusIcon(subject.status)}
+                        <span className="ml-1">
+                          {subject.status === "ahead" && "Voraus"}
+                          {subject.status === "on_track" && "Im Plan"}
+                          {subject.status === "behind" && "Rückstand"}
+                        </span>
+                      </Badge>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {getTrendIcon(subject.trend)}
-                      <span className={`text-sm font-medium ${getStatusColor(subject.status)}`}>
-                        {subject.status === "excellent" ? "Ausgezeichnet" :
-                         subject.status === "on_track" ? "Auf Kurs" :
-                         subject.status === "needs_attention" ? "Aufmerksamkeit" : "Kritisch"}
-                      </span>
+                    <div className="text-sm text-muted-foreground">
+                      {subject.completedAssignments}/{subject.assignments} Aufgaben
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">Aktuelle Note</p>
                       <p className={`text-lg font-bold ${getGradeColor(subject.currentGrade)}`}>
@@ -324,9 +312,6 @@ const Analysis = () => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Bottom padding for navigation */}
-      <div className="h-20" />
       
       <BottomNavigation t={t} />
     </div>

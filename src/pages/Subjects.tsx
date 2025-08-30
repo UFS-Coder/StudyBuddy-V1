@@ -62,8 +62,11 @@ const Subjects = () => {
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <BookOpen className="w-5 h-5 text-primary" />
+                        <div 
+                          className="p-2 rounded-lg" 
+                          style={{ backgroundColor: `${subject.color}20` }}
+                        >
+                          <BookOpen className="w-5 h-5" style={{ color: subject.color }} />
                         </div>
                         <div>
                           <CardTitle className="text-lg">{subject.name}</CardTitle>
@@ -88,7 +91,7 @@ const Subjects = () => {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">Aktuelle Note:</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-lg font-bold text-primary">
+                          <span className="text-lg font-bold" style={{ color: subject.color }}>
                             {subject.current_grade}%
                           </span>
                         </div>
@@ -100,7 +103,7 @@ const Subjects = () => {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">Ziel:</span>
                         <div className="flex items-center gap-2">
-                          <Target className="w-4 h-4 text-primary" />
+                          <Target className="w-4 h-4" style={{ color: subject.color }} />
                           <span className="text-sm font-medium">
                             {subject.target_grade}%
                           </span>

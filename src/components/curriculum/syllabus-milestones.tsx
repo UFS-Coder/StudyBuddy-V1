@@ -34,7 +34,7 @@ const MILESTONE_TYPES = [
   { value: 'project', label: 'Project', icon: '🎯' },
   { value: 'presentation', label: 'Presentation', icon: '🎤' },
   { value: 'quiz', label: 'Quiz', icon: '❓' },
-  { value: 'deadline', label: 'Deadline', icon: '⏰' },
+  { value: 'target_date', label: 'Target Date', icon: '⏰' },
   { value: 'review', label: 'Review', icon: '🔍' },
   { value: 'other', label: 'Other', icon: '📌' },
 ];
@@ -48,7 +48,7 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
     title: '',
     description: '',
     milestone_type: '',
-    deadline: '',
+    target_date: '',
   });
   const { toast } = useToast();
 
@@ -64,7 +64,7 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
         .select('*')
         .eq('subject_id', subjectId)
         .eq('user_id', userId)
-        .order('deadline', { ascending: true });
+        .order('target_date', { ascending: true });
 
       if (error) throw error;
       setMilestones(data || []);
@@ -81,7 +81,7 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
   };
 
   const addMilestone = async () => {
-    if (!newMilestone.title.trim() || !newMilestone.milestone_type || !newMilestone.deadline) {
+    if (!newMilestone.title.trim() || !newMilestone.milestone_type || !newMilestone.target_date) {
       toast({
         title: 'Error',
         description: 'Please fill in all required fields',
@@ -97,7 +97,7 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
           title: newMilestone.title,
           description: newMilestone.description || null,
           milestone_type: newMilestone.milestone_type,
-          deadline: newMilestone.deadline,
+          target_date: newMilestone.target_date,
           subject_id: subjectId,
           user_id: userId,
           order_index: milestones.length,
@@ -109,9 +109,9 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
       if (error) throw error;
 
       setMilestones([...milestones, data].sort((a, b) => 
-        new Date(a.deadline || '').getTime() - new Date(b.deadline || '').getTime()
+        new Date(a.target_date || '').getTime() - new Date(b.target_date || '').getTime()
       ));
-      setNewMilestone({ title: '', description: '', milestone_type: '', deadline: '' });
+      setNewMilestone({ title: '', description: '', milestone_type: '', target_date: '' });
       setIsAdding(false);
       toast({
         title: 'Success',
@@ -182,14 +182,14 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
 
   const getMilestoneStatus = (milestone: SyllabusMilestone) => {
     if (milestone.completed) return 'completed';
-    if (!milestone.deadline) return 'no-deadline';
-    
-    const deadline = new Date(milestone.deadline);
+    if (!milestone.target_date) return 'no-deadline';
+
+    const targetDate = new Date(milestone.target_date);
     const now = new Date();
     const threeDaysFromNow = addDays(now, 3);
-    
-    if (isBefore(deadline, now)) return 'overdue';
-    if (isBefore(deadline, threeDaysFromNow)) return 'due-soon';
+
+    if (isBefore(targetDate, now)) return 'overdue';
+    if (isBefore(targetDate, threeDaysFromNow)) return 'due-soon';
     return 'upcoming';
   };
 
@@ -215,8 +215,8 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
 
   const completedCount = milestones.filter(m => m.completed).length;
   const totalCount = milestones.length;
-  const upcomingMilestones = milestones.filter(m => !m.completed && m.deadline && isAfter(new Date(m.deadline), new Date()));
-  const overdueMilestones = milestones.filter(m => !m.completed && m.deadline && isBefore(new Date(m.deadline), new Date()));
+  const upcomingMilestones = milestones.filter(m => !m.completed && m.target_date && isAfter(new Date(m.target_date), new Date()));
+  const overdueMilestones = milestones.filter(m => !m.completed && m.target_date && isBefore(new Date(m.target_date), new Date()));
 
   if (isLoading) {
     return (
@@ -318,11 +318,11 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
                       </p>
                     )}
                     
-                    {milestone.deadline && (
+                    {milestone.target_date && (
                       <div className="flex items-center gap-2 text-sm">
                         {getStatusIcon(status)}
                         <span className={milestone.completed ? 'line-through opacity-60' : ''}>
-                          {format(new Date(milestone.deadline), 'MMM dd, yyyy')}
+                          {format(new Date(milestone.target_date), 'MMM dd, yyyy')}
                         </span>
                         {status === 'due-soon' && !milestone.completed && (
                           <Badge variant="destructive" className="text-xs">
@@ -395,8 +395,8 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
               </Select>
               <Input
                 type="date"
-                value={newMilestone.deadline}
-                onChange={(e) => setNewMilestone({ ...newMilestone, deadline: e.target.value })}
+                value={newMilestone.target_date}
+                onChange={(e) => setNewMilestone({ ...newMilestone, target_date: e.target.value })}
               />
             </div>
             <div className="flex gap-2">
@@ -406,7 +406,7 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
               <Button
                 onClick={() => {
                   setIsAdding(false);
-                  setNewMilestone({ title: '', description: '', milestone_type: '', deadline: '' });
+                  setNewMilestone({ title: '', description: '', milestone_type: '', target_date: '' });
                 }}
                 size="sm"
                 variant="outline"

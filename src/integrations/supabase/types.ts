@@ -220,14 +220,13 @@ export type Database = {
       resource_attachments: {
         Row: {
           created_at: string
+          description: string | null
           file_name: string | null
           file_size: number | null
-          file_type: string | null
-          file_url: string | null
           id: string
-          link_description: string | null
-          link_url: string | null
+          mime_type: string | null
           resource_type: string
+          resource_url: string | null
           subtopic_id: string | null
           title: string
           topic_id: string | null
@@ -236,14 +235,13 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          description?: string | null
           file_name?: string | null
           file_size?: number | null
-          file_type?: string | null
-          file_url?: string | null
           id?: string
-          link_description?: string | null
-          link_url?: string | null
+          mime_type?: string | null
           resource_type: string
+          resource_url?: string | null
           subtopic_id?: string | null
           title: string
           topic_id?: string | null
@@ -252,14 +250,13 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          description?: string | null
           file_name?: string | null
           file_size?: number | null
-          file_type?: string | null
-          file_url?: string | null
           id?: string
-          link_description?: string | null
-          link_url?: string | null
+          mime_type?: string | null
           resource_type?: string
+          resource_url?: string | null
           subtopic_id?: string | null
           title?: string
           topic_id?: string | null
@@ -346,6 +343,54 @@ export type Database = {
         }
         Relationships: []
       }
+      syllabus_milestones: {
+        Row: {
+          completed: boolean | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          id: string
+          milestone_type: string | null
+          order_index: number | null
+          progress_percentage: number | null
+          subject_id: string
+          target_date: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          milestone_type?: string | null
+          order_index?: number | null
+          progress_percentage?: number | null
+          subject_id: string
+          target_date?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          milestone_type?: string | null
+          order_index?: number | null
+          progress_percentage?: number | null
+          subject_id?: string
+          target_date?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       syllabus_topics: {
         Row: {
           created_at: string
@@ -371,48 +416,6 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
-          order_index?: number | null
-          subject_id?: string
-          title?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      syllabus_milestones: {
-        Row: {
-          completed: boolean | null
-          created_at: string
-          deadline: string | null
-          description: string | null
-          id: string
-          milestone_type: string
-          order_index: number | null
-          subject_id: string
-          title: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          completed?: boolean | null
-          created_at?: string
-          deadline?: string | null
-          description?: string | null
-          id?: string
-          milestone_type: string
-          order_index?: number | null
-          subject_id: string
-          title: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          completed?: boolean | null
-          created_at?: string
-          deadline?: string | null
-          description?: string | null
-          id?: string
-          milestone_type?: string
           order_index?: number | null
           subject_id?: string
           title?: string

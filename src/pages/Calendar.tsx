@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Navbar } from "@/components/dashboard/navbar";
 import { BottomNavigation } from "@/components/dashboard/bottom-navigation";
 import { useTranslations } from "@/hooks/use-translations";
 import { useAuth } from "@/hooks/use-auth";
@@ -14,7 +15,7 @@ import { useSubjects } from "@/hooks/use-subjects";
 import { Calendar as CalendarIcon, Plus, Clock, BookOpen, AlertCircle, CheckCircle } from "lucide-react";
 
 const Calendar = () => {
-  const { t } = useTranslations();
+  const { language, setLanguage, t } = useTranslations();
   const { user } = useAuth();
   const { data: profile } = useProfile();
   const { data: subjects } = useSubjects();
@@ -125,9 +126,15 @@ const Calendar = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground p-6">
-        <div className="container mx-auto">
+      <Navbar 
+        language={language} 
+        onLanguageChange={setLanguage} 
+        studentName={studentName}
+        t={t} 
+      />
+      <div className="container mx-auto px-4 py-6 pb-20">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground p-6 rounded-lg mb-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -228,9 +235,7 @@ const Calendar = () => {
             </Dialog>
           </div>
         </div>
-      </div>
 
-      <div className="container mx-auto p-6">
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <Card>
@@ -345,9 +350,6 @@ const Calendar = () => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Bottom padding for navigation */}
-      <div className="h-20" />
       
       <BottomNavigation t={t} />
     </div>
