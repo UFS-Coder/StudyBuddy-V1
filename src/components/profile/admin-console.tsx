@@ -1,12 +1,16 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, Users, Calendar, CheckSquare, FileText, PenTool, Target } from "lucide-react";
+import { BookOpen, Users, Calendar, CheckSquare, PenTool, Target } from "lucide-react";
 import { SubjectManager } from "./admin/subject-manager";
 import { SyllabusManager } from "./admin/syllabus-manager";
-import { TaskManager } from "./admin/task-manager";
-import { HomeworkManager } from "./admin/homework-manager";
+import { UnifiedTaskManager } from "./admin/unified-task-manager";
 import { NotesManager } from "./admin/notes-manager";
 
-export const AdminConsole = () => {
+interface AdminConsoleProps {
+  defaultSection?: string | null;
+}
+
+export const AdminConsole = ({ defaultSection }: AdminConsoleProps) => {
+  const defaultValue = defaultSection || 'subjects';
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
@@ -16,8 +20,8 @@ export const AdminConsole = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="subjects" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs defaultValue={defaultValue} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="subjects" className="flex items-center gap-2">
             <BookOpen className="h-4 w-4" />
             <span className="hidden sm:inline">Subjects</span>
@@ -29,10 +33,6 @@ export const AdminConsole = () => {
           <TabsTrigger value="tasks" className="flex items-center gap-2">
             <CheckSquare className="h-4 w-4" />
             <span className="hidden sm:inline">Tasks</span>
-          </TabsTrigger>
-          <TabsTrigger value="homework" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Homework</span>
           </TabsTrigger>
           <TabsTrigger value="notes" className="flex items-center gap-2">
             <PenTool className="h-4 w-4" />
@@ -49,11 +49,7 @@ export const AdminConsole = () => {
         </TabsContent>
 
         <TabsContent value="tasks">
-          <TaskManager />
-        </TabsContent>
-
-        <TabsContent value="homework">
-          <HomeworkManager />
+          <UnifiedTaskManager />
         </TabsContent>
 
         <TabsContent value="notes">

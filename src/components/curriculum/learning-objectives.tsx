@@ -28,7 +28,7 @@ export function LearningObjectives({ topicId, subtopicId, userId }: LearningObje
 
   useEffect(() => {
     fetchObjectives();
-  }, [topicId, subtopicId]);
+  }, [topicId, subtopicId, userId]);
 
   const fetchObjectives = async () => {
     try {

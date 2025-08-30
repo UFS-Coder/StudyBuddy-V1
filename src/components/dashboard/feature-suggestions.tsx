@@ -22,13 +22,13 @@ interface FeatureSuggestionProps {
 export function FeatureSuggestions({ t }: FeatureSuggestionProps) {
   const upcomingFeatures = [
     {
-      category: "Grade Management",
+      category: "Noten Management",
       icon: <TrendingUp className="h-5 w-5" />,
       items: [
         "Add/Edit individual test scores",
-        "Grade calculator with weightings", 
+        "Noten Rechner mit Gewichtungen", 
         "Photo upload for test papers",
-        "Grade trend analysis & predictions"
+        "Noten Trend Analyse & Vorhersagen"
       ]
     },
     {
@@ -66,7 +66,7 @@ export function FeatureSuggestions({ t }: FeatureSuggestionProps) {
       icon: <BarChart3 className="h-5 w-5" />,
       items: [
         "Subject performance comparison",
-        "Abitur grade projections",
+        "Abitur Noten Prognosen",
         "Strength/weakness analysis",
         "Parent progress reports"
       ]
@@ -122,7 +122,7 @@ export function FeatureSuggestions({ t }: FeatureSuggestionProps) {
           <Award className="h-12 w-12 mx-auto" />
           <h3 className="text-xl font-bold">Ready for Your Abitur Success!</h3>
           <p className="text-primary-foreground/80">
-            Track every grade, master every subject, and achieve your academic goals with confidence.
+            Track every note, master every subject, and achieve your academic goals with confidence.
           </p>
         </div>
       </Card>

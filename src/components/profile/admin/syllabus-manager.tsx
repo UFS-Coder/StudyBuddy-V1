@@ -7,12 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Target, Plus, ChevronDown, ChevronRight, Edit, Trash2 } from 'lucide-react';
+import { Target, Plus, ChevronRight, Edit, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
+import { useCanEdit } from '@/hooks/use-parent-permissions';
 
 import { Tables } from '@/integrations/supabase/types';
 
@@ -33,6 +33,7 @@ type Theme = Tables<'themes'>;
 
 export const SyllabusManager = () => {
   const { user } = useAuth();
+  const canEdit = useCanEdit();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -379,7 +380,14 @@ export const SyllabusManager = () => {
         <div className="flex gap-2">
           <Dialog open={isTopicDialogOpen} onOpenChange={setIsTopicDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button 
+                disabled={!canEdit}
+                onClick={() => {
+                  setEditingTopic(null);
+                  setTopicFormData({ title: '', description: '' });
+                  setSelectedSubjectId('');
+                }}
+              >
                 <Target className="h-4 w-4 mr-2" />
                 Add Topic
               </Button>
@@ -461,7 +469,15 @@ export const SyllabusManager = () => {
 
           <Dialog open={isSubtopicDialogOpen} onOpenChange={setIsSubtopicDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button 
+                variant="outline" 
+                disabled={!canEdit}
+                onClick={() => {
+                  setEditingSubtopic(null);
+                  setSubtopicFormData({ title: '', description: '' });
+                  setSelectedTopicId('');
+                }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Subtopic
               </Button>
@@ -544,147 +560,36 @@ export const SyllabusManager = () => {
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {subjectsWithData.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="col-span-full text-center py-8 text-muted-foreground">
             <Target className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p>No subjects found</p>
             <p className="text-sm">Create a subject first to get started</p>
           </div>
         ) : (
           subjectsWithData.map((subject) => (
-            <Card key={subject.id} className="border-l-4 border-l-primary">
-              <CardHeader className="cursor-pointer" onClick={() => {
+            <Card key={subject.id} className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-primary">
+              <CardHeader onClick={() => {
                 setSelectedSubject(subject as SubjectWithTopics);
                 setIsSubjectModalOpen(true);
               }}>
+                <div className="flex items-center justify-between mb-2">
+                  <CardTitle className="text-lg">{subject.name}</CardTitle>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+                {subject.description && (
+                  <p className="text-sm text-muted-foreground mb-3">{subject.description}</p>
+                )}
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl">{subject.name}</CardTitle>
-                    {subject.description && (
-                      <p className="text-sm text-muted-foreground mt-1">{subject.description}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="text-sm">
-                      {subject.topics?.length || 0} topics
-                    </Badge>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  <Badge variant="outline" className="text-sm">
+                    {subject.topics?.length || 0} topics
+                  </Badge>
+                  <div className="text-xs text-muted-foreground">
+                    {subject.topics?.reduce((total, topic) => total + (topic.subtopics?.length || 0), 0) || 0} subtopics
                   </div>
                 </div>
               </CardHeader>
-              
-              <CardContent className="pt-0">
-                <div className="space-y-3">
-                  {subject.topics?.map((topic) => (
-                    <Collapsible key={topic.id}>
-                      <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-medium">{topic.title}</h4>
-                            <Badge variant="secondary" className="text-xs">{topic.subtopics?.length || 0}</Badge>
-                          </div>
-                          {topic.description && (
-                            <p className="text-xs text-muted-foreground mt-1">{topic.description}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditTopic(topic);
-                            }}
-                            className="h-6 w-6 p-0"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteTopic(topic.id);
-                            }}
-                            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                          <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                              <ChevronRight className="h-3 w-3" />
-                            </Button>
-                          </CollapsibleTrigger>
-                        </div>
-                      </div>
-                      <CollapsibleContent>
-                        <div className="mt-3 space-y-2">
-                          {topic.subtopics?.map((subtopic) => (
-                            <div
-                              key={subtopic.id}
-                              className="flex items-center gap-2 p-2 rounded bg-background/50"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={subtopic.completed}
-                                onChange={(e) => toggleSubtopicMutation.mutate({
-                                  id: subtopic.id,
-                                  completed: e.target.checked
-                                })}
-                                className="rounded"
-                              />
-                              <div className="flex-1">
-                                <span className={`text-xs ${subtopic.completed ? 'line-through text-muted-foreground' : ''}`}>
-                                  {subtopic.title}
-                                </span>
-                                {subtopic.description && (
-                                  <p className="text-xs text-muted-foreground">{subtopic.description}</p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditSubtopic(subtopic);
-                                  }}
-                                  className="h-6 w-6 p-0"
-                                >
-                                  <Edit className="h-3 w-3" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteSubtopic(subtopic.id);
-                                  }}
-                                  className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          )) || []}
-                          {(!topic.subtopics || topic.subtopics.length === 0) && (
-                            <div className="text-xs text-muted-foreground text-center py-2">
-                              No subtopics yet
-                            </div>
-                          )}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )) || []}
-                  {(!subject.topics || subject.topics.length === 0) && (
-                    <div className="text-center py-6 text-muted-foreground">
-                      <Target className="h-6 w-6 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No topics yet for this subject</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
             </Card>
           ))
         )}
@@ -694,10 +599,28 @@ export const SyllabusManager = () => {
       <Dialog open={isSubjectModalOpen} onOpenChange={setIsSubjectModalOpen}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-2xl">{selectedSubject?.name}</DialogTitle>
-            {selectedSubject?.description && (
-              <p className="text-muted-foreground">{selectedSubject.description}</p>
-            )}
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-2xl">{selectedSubject?.name}</DialogTitle>
+                {selectedSubject?.description && (
+                  <p className="text-muted-foreground">{selectedSubject.description}</p>
+                )}
+              </div>
+              {canEdit && (
+                <Button
+                  onClick={() => {
+                    setEditingTopic(null);
+                    setTopicFormData({ title: '', description: '' });
+                    setSelectedSubjectId(selectedSubject?.id || '');
+                    setIsTopicDialogOpen(true);
+                  }}
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Topic
+                </Button>
+              )}
+            </div>
           </DialogHeader>
           {selectedSubject && (
             <div className="space-y-6">
@@ -728,6 +651,7 @@ export const SyllabusManager = () => {
                               handleEditTopic(topic);
                             }}
                             className="h-8 w-8 p-0"
+                            disabled={!canEdit}
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -739,6 +663,7 @@ export const SyllabusManager = () => {
                               handleDeleteTopic(topic.id);
                             }}
                             className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            disabled={!canEdit}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -778,10 +703,13 @@ export const SyllabusManager = () => {
                 <h4 className="text-lg font-semibold">Subtopics</h4>
                 <Button 
                   onClick={() => {
+                    setEditingSubtopic(null);
+                    setSubtopicFormData({ title: '', description: '' });
                     setSelectedTopicId(selectedTopic.id);
                     setIsSubtopicDialogOpen(true);
                   }}
                   size="sm"
+                  disabled={!canEdit}
                 >
                   <Plus className="h-4 w-4 mr-1" />
                   Add Subtopic
@@ -801,6 +729,7 @@ export const SyllabusManager = () => {
                         completed: e.target.checked
                       })}
                       className="rounded"
+                      disabled={!canEdit}
                     />
                     <div className="flex-1">
                       <h4 className={`font-medium ${subtopic.completed ? 'line-through text-muted-foreground' : ''}`}>
@@ -819,6 +748,7 @@ export const SyllabusManager = () => {
                           handleEditSubtopic(subtopic);
                         }}
                         className="h-8 w-8 p-0"
+                        disabled={!canEdit}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -830,6 +760,7 @@ export const SyllabusManager = () => {
                           handleDeleteSubtopic(subtopic.id);
                         }}
                         className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                        disabled={!canEdit}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

@@ -37,7 +37,7 @@ export function ResourceAttachments({ topicId, subtopicId, userId }: ResourceAtt
 
   useEffect(() => {
     fetchResources();
-  }, [topicId, subtopicId]);
+  }, [topicId, subtopicId, userId]);
 
   const fetchResources = async () => {
     try {
@@ -174,8 +174,8 @@ export function ResourceAttachments({ topicId, subtopicId, userId }: ResourceAtt
       const resource = resources.find(r => r.id === id);
       
       // Delete file from storage if it's a file resource
-      if (resource?.resource_type === 'file' && resource.file_url) {
-        const filePath = resource.file_url.split('/').slice(-3).join('/');
+      if (resource?.resource_type === 'file' && resource.resource_url) {
+        const filePath = resource.resource_url.split('/').slice(-3).join('/');
         await supabase.storage.from('attachments').remove([filePath]);
       }
 
@@ -293,9 +293,9 @@ export function ResourceAttachments({ topicId, subtopicId, userId }: ResourceAtt
                     <div>
                       <h4 className="font-medium">{resource.title}</h4>
                       <div className="flex items-center gap-2 text-sm text-gray-500">
-                        {resource.file_type && (
+                        {resource.mime_type && (
                           <Badge variant="secondary" className="text-xs">
-                            {resource.file_type.split('/')[1]?.toUpperCase()}
+                            {resource.mime_type.split('/')[1]?.toUpperCase()}
                           </Badge>
                         )}
                         {resource.file_size && (
@@ -305,9 +305,9 @@ export function ResourceAttachments({ topicId, subtopicId, userId }: ResourceAtt
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    {resource.file_url && (
+                    {resource.resource_url && (
                       <Button
-                        onClick={() => window.open(resource.file_url!, '_blank')}
+                        onClick={() => window.open(resource.resource_url!, '_blank')}
                         size="sm"
                         variant="ghost"
                       >
@@ -391,20 +391,20 @@ export function ResourceAttachments({ topicId, subtopicId, userId }: ResourceAtt
                     <LinkIcon className="h-5 w-5 text-green-600" />
                     <div>
                       <h4 className="font-medium">{resource.title}</h4>
-                      {resource.link_description && (
-                        <p className="text-sm text-gray-600">{resource.link_description}</p>
+                      {resource.description && (
+                        <p className="text-sm text-gray-600">{resource.description}</p>
                       )}
-                      {resource.link_url && (
+                      {resource.resource_url && (
                         <p className="text-xs text-blue-600 truncate max-w-xs">
-                          {resource.link_url}
+                          {resource.resource_url}
                         </p>
                       )}
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    {resource.link_url && (
+                    {resource.resource_url && (
                       <Button
-                        onClick={() => window.open(resource.link_url!, '_blank')}
+                        onClick={() => window.open(resource.resource_url!, '_blank')}
                         size="sm"
                         variant="ghost"
                       >

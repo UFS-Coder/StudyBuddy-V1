@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSubjects } from "@/hooks/use-subjects";
 import { useAuth } from "@/hooks/use-auth";
+import { useCanEdit } from "@/hooks/use-parent-permissions";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ const COLORS = [
 
 export const SubjectManager = () => {
   const { user } = useAuth();
+  const canEdit = useCanEdit();
   const { data: subjects = [] } = useSubjects();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -145,13 +147,14 @@ export const SubjectManager = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Subject Management</h3>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={resetForm}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Subject
-            </Button>
-          </DialogTrigger>
+        {canEdit && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={resetForm}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Subject
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingSubject ? "Edit Subject" : "Add New Subject"}</DialogTitle>
@@ -260,6 +263,7 @@ export const SubjectManager = () => {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -271,22 +275,24 @@ export const SubjectManager = () => {
                   className="w-4 h-4 rounded-full"
                   style={{ backgroundColor: subject.color }}
                 />
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleEdit(subject)}
-                  >
-                    <Edit2 className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => deleteSubjectMutation.mutate(subject.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
+                {canEdit && (
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleEdit(subject)}
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteSubjectMutation.mutate(subject.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
               <CardTitle className="text-lg">{subject.name}</CardTitle>
             </CardHeader>

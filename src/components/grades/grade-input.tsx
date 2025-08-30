@@ -9,6 +9,7 @@ import { Plus, Save, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { isValidGermanGrade, formatGrade } from '@/lib/grade-calculations';
 import { useAuth } from '@/hooks/use-auth';
+import { useCanEdit } from '@/hooks/use-parent-permissions';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -45,6 +46,7 @@ export const GradeInput: React.FC<GradeInputProps> = ({
   onGradeAdded 
 }) => {
   const { user } = useAuth();
+  const canEdit = useCanEdit();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
@@ -162,6 +164,11 @@ export const GradeInput: React.FC<GradeInputProps> = ({
     if (gradeValue <= 4.0) return 'border-orange-300';
     return 'border-red-300';
   };
+
+  // Don't render the add grade button if user can't edit (parent mode)
+  if (!canEdit) {
+    return null;
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>

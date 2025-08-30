@@ -54,7 +54,7 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
 
   useEffect(() => {
     fetchMilestones();
-  }, [subjectId]);
+  }, [subjectId, userId]);
 
   const fetchMilestones = async () => {
     try {

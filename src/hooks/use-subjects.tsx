@@ -36,7 +36,7 @@ export const useSubjects = () => {
         throw error;
       }
 
-      return data as Subject[];
+      return data || [];
     },
     enabled: !!user,
   });

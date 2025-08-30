@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Navbar } from "@/components/dashboard/navbar";
 import { BottomNavigation } from "@/components/dashboard/bottom-navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,9 +18,26 @@ const Subjects = () => {
   const { user } = useAuth();
   const { data: profile } = useProfile();
   const { data: subjects = [] } = useSubjects();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
 
   const studentName = profile?.display_name || user?.email?.split("@")[0] || "Student";
+
+  // Handle URL parameters for subject selection
+  useEffect(() => {
+    const subjectName = searchParams.get('subject');
+    if (subjectName && subjects.length > 0) {
+      const subject = subjects.find(s => s.name.toLowerCase() === subjectName.toLowerCase());
+      if (subject) {
+        setSelectedSubject(subject.id);
+      }
+    }
+  }, [searchParams, subjects]);
+
+  const handleBackToSubjects = () => {
+    setSelectedSubject(null);
+    setSearchParams({});
+  };
 
 
 
@@ -33,13 +51,23 @@ const Subjects = () => {
       />
       
       <main className="container mx-auto px-4 py-6 pb-20">
-        {selectedSubject ? (
-          <SubjectDetail 
-            subject={subjects.find(s => s.id === selectedSubject)!}
-            onBack={() => setSelectedSubject(null)}
-            t={t}
-          />
-        ) : (
+        {selectedSubject ? (() => {
+          const subject = subjects.find(s => s.id === selectedSubject);
+          return subject ? (
+            <SubjectDetail 
+              subject={subject}
+              onBack={handleBackToSubjects}
+              t={t}
+            />
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Subject not found.</p>
+              <Button onClick={handleBackToSubjects} className="mt-4">
+                Back to Subjects
+              </Button>
+            </div>
+          );
+        })() : (
           <>
             {/* Header */}
             <div className="mb-6">

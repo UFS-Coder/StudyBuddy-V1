@@ -79,7 +79,7 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
 
   useEffect(() => {
     fetchAllData();
-  }, [subjectId]);
+  }, [subjectId, userId]);
 
   useEffect(() => {
     calculateStats();

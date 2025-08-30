@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useSubjects } from "@/hooks/use-subjects";
 import { useAuth } from "@/hooks/use-auth";
+import { useCanEdit } from "@/hooks/use-parent-permissions";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +38,7 @@ const TIME_PERIODS = [
 
 export const NotesManager = () => {
   const { user } = useAuth();
+  const canEdit = useCanEdit();
   const { data: subjects = [] } = useSubjects();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -182,13 +184,14 @@ export const NotesManager = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Notes Management</h3>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleNewNote}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Note
-            </Button>
-          </DialogTrigger>
+        {canEdit && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleNewNote}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Note
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>{editingNote ? "Edit Note" : "Create New Note"}</DialogTitle>
@@ -282,6 +285,7 @@ export const NotesManager = () => {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Search and Filters */}

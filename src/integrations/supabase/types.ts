@@ -181,8 +181,33 @@ export type Database = {
         }
         Relationships: []
       }
+      parent_child_relationships: {
+        Row: {
+          child_id: string
+          created_at: string
+          id: string
+          parent_id: string
+          updated_at: string
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          id?: string
+          parent_id: string
+          updated_at?: string
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          id?: string
+          parent_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
+          account_type: string | null
           avatar_url: string | null
           bio: string | null
           created_at: string
@@ -194,6 +219,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_type?: string | null
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
@@ -205,6 +231,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_type?: string | null
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
@@ -268,6 +295,7 @@ export type Database = {
       subjects: {
         Row: {
           color: string | null
+          course_type: string
           created_at: string
           credits: number | null
           current_grade: number | null
@@ -281,6 +309,7 @@ export type Database = {
         }
         Insert: {
           color?: string | null
+          course_type?: string
           created_at?: string
           credits?: number | null
           current_grade?: number | null
@@ -294,6 +323,7 @@ export type Database = {
         }
         Update: {
           color?: string | null
+          course_type?: string
           created_at?: string
           credits?: number | null
           current_grade?: number | null
@@ -425,6 +455,62 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "syllabus_topics_theme_id_fkey"
+            columns: ["theme_id"]
+            isOneToOne: false
+            referencedRelation: "themes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          completed: boolean | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: string | null
+          subject_id: string | null
+          time_period: string | null
+          title: string
+          topic_id: string | null
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          subject_id?: string | null
+          time_period?: string | null
+          title: string
+          topic_id?: string | null
+          type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          subject_id?: string | null
+          time_period?: string | null
+          title?: string
+          topic_id?: string | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
         Relationships: []
       }
       themes: {
@@ -463,57 +549,25 @@ export type Database = {
         }
         Relationships: []
       }
-      tasks: {
-        Row: {
-          completed: boolean | null
-          created_at: string
-          description: string | null
-          due_date: string | null
-          id: string
-          priority: string | null
-          subject_id: string | null
-          time_period: string | null
-          title: string
-          topic_id: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          completed?: boolean | null
-          created_at?: string
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          priority?: string | null
-          subject_id?: string | null
-          time_period?: string | null
-          title: string
-          topic_id?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          completed?: boolean | null
-          created_at?: string
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          priority?: string | null
-          subject_id?: string | null
-          time_period?: string | null
-          title?: string
-          topic_id?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_parent_children: {
+        Args: { parent_user_id: string }
+        Returns: {
+          child_display_name: string
+          child_email: string
+          child_grade_level: string
+          child_id: string
+          child_school: string
+        }[]
+      }
+      link_child_to_parent: {
+        Args: { child_email: string; parent_user_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useSubjects } from "@/hooks/use-subjects";
 import { useAuth } from "@/hooks/use-auth";
+import { useCanEdit } from "@/hooks/use-parent-permissions";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,6 +37,7 @@ const TIME_PERIODS = [
 
 export const HomeworkManager = () => {
   const { user } = useAuth();
+  const canEdit = useCanEdit();
   const { data: subjects = [] } = useSubjects();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -148,13 +150,14 @@ export const HomeworkManager = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Homework Management</h3>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Homework
-            </Button>
-          </DialogTrigger>
+        {canEdit && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Homework
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New Homework</DialogTitle>
@@ -247,6 +250,7 @@ export const HomeworkManager = () => {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">

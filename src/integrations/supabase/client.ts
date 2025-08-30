@@ -19,3 +19,16 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
+
+// Global error handler for auth errors
+supabase.auth.onAuthStateChange((event, session) => {
+  // Handle auth errors globally
+  if (event === 'TOKEN_REFRESHED' && !session) {
+    // Clear any stored auth data
+    localStorage.removeItem('supabase.auth.token');
+    // Redirect to auth page
+    if (window.location.pathname !== '/auth') {
+      window.location.href = '/auth';
+    }
+  }
+});

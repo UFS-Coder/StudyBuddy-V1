@@ -21,17 +21,24 @@ import {
   Users,
   Settings,
   CheckSquare,
-  Clock
+  Clock,
+  Filter,
+  Edit,
+  Trash2,
+  Award,
+  AlertTriangle,
+  Activity
 } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { CurriculumDashboard } from '@/components/curriculum/curriculum-dashboard';
 import { GradeInput } from '@/components/grades/grade-input';
+
 import { useAuth } from '@/hooks/use-auth';
 import { useGrades } from '@/hooks/use-grades';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatGrade, getGradeColorClass, getGermanGradeName } from '@/lib/grade-calculations';
+import { formatGrade, getGradeColorClass, getGermanGradeName, calculateSubjectAverage } from '@/lib/grade-calculations';
 import { format } from 'date-fns';
 
 type Subject = Tables<'subjects'>;
@@ -119,31 +126,41 @@ interface Task {
   due_date: string | null;
   completed: boolean;
   priority: "low" | "medium" | "high";
-  time_period: "day" | "week" | "month" | "quarter" | "half_year";
+  time_period: "day" | "week" | "month" | "quarter" | "half_year" | "one_time";
   subject_id: string | null;
+  type: "task" | "homework";
+  created_at: string;
+  updated_at: string;
+  user_id: string;
+  topic_id: string | null;
 }
 
-interface AssignmentManagementProps {
+interface TaskManagementProps {
   subject: Subject;
 }
 
-function AssignmentManagement({ subject }: AssignmentManagementProps) {
+function TaskManagement({ subject }: TaskManagementProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [filterType, setFilterType] = useState<"all" | "task" | "homework">("all");
   const [taskFormData, setTaskFormData] = useState<{
     title: string;
     description: string;
     due_date: string;
     priority: "low" | "medium" | "high";
-    time_period: "day" | "week" | "month" | "quarter" | "half_year";
+    time_period: "day" | "week" | "month" | "quarter" | "half_year" | "one_time";
+    type: "task" | "homework";
   }>({
     title: "",
     description: "",
     due_date: "",
     priority: "medium",
     time_period: "week",
+    type: "task",
   });
 
   // Fetch tasks for this subject
@@ -159,7 +176,10 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
         .order("due_date", { nullsFirst: false });
       
       if (error) throw error;
-      return data as Task[];
+      return data.map(task => ({
+        ...task,
+        submitted_at: null
+      })) as Task[];
     },
     enabled: !!user,
   });
@@ -178,6 +198,8 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
           priority: data.priority,
           time_period: data.time_period,
           subject_id: subject.id,
+          type: data.type,
+          submitted_at: null,
         }]);
       
       if (error) throw error;
@@ -191,8 +213,17 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
         due_date: "",
         priority: "medium",
         time_period: "week",
+        type: "task",
       });
       toast({ title: "Success", description: "Task created successfully" });
+    },
+    onError: (error) => {
+      console.error("Error creating task:", error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to create task. Please try again.",
+        variant: "destructive"
+      });
     },
   });
 
@@ -207,6 +238,53 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks", user?.id, subject.id] });
+    },
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from("tasks")
+        .delete()
+        .eq("id", taskId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks", user?.id, subject.id] });
+      toast({ title: "Success", description: "Task deleted successfully" });
+    },
+  });
+
+  const updateTaskMutation = useMutation({
+    mutationFn: async (task: Task) => {
+      const { error } = await supabase
+        .from("tasks")
+        .update({
+          title: task.title,
+          description: task.description,
+          due_date: task.due_date,
+          priority: task.priority,
+          time_period: task.time_period,
+          type: task.type,
+        })
+        .eq("id", task.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks", user?.id, subject.id] });
+      setIsEditDialogOpen(false);
+      setEditingTask(null);
+      toast({ title: "Success", description: "Task updated successfully" });
+    },
+    onError: (error) => {
+      console.error("Error updating task:", error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to update task. Please try again.",
+        variant: "destructive"
+      });
     },
   });
 
@@ -226,6 +304,20 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
     }
   };
 
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case "task": return "bg-blue-100 text-blue-800";
+      case "homework": return "bg-purple-100 text-purple-800";
+      default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  // Filter tasks based on selected type
+  const filteredTasks = tasks.filter(task => {
+    if (filterType === "all") return true;
+    return task.type === filterType;
+  });
+
   return (
     <div className="space-y-6">
       {/* Create Task Section */}
@@ -234,27 +326,66 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Assignments & Tasks
+              Task Management
             </CardTitle>
-            <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Task
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 border rounded-lg p-1">
+                <Button
+                  variant={filterType === "all" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setFilterType("all")}
+                >
+                  All
                 </Button>
-              </DialogTrigger>
-              <DialogContent>
+                <Button
+                  variant={filterType === "task" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setFilterType("task")}
+                >
+                  Tasks
+                </Button>
+                <Button
+                  variant={filterType === "homework" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setFilterType("homework")}
+                >
+                  Homework
+                </Button>
+              </div>
+              <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Task
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Create New Task - {subject.name}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="title">Task Title *</Label>
+                    <Label htmlFor="type">Type *</Label>
+                    <Select value={taskFormData.type} onValueChange={(value: "task" | "homework") => 
+                      setTaskFormData(prev => ({ ...prev, type: value }))
+                    }>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="task">Task</SelectItem>
+                        <SelectItem value="homework">Homework</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Title *</Label>
                     <Input
                       id="title"
                       value={taskFormData.title}
                       onChange={(e) => setTaskFormData(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="Enter task title"
+                      placeholder="Enter title"
                       required
                     />
                   </div>
@@ -265,21 +396,41 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
                       id="description"
                       value={taskFormData.description}
                       onChange={(e) => setTaskFormData(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Enter task description"
+                      placeholder="Enter description"
                       rows={3}
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="due_date">Due Date</Label>
-                      <Input
-                        id="due_date"
-                        type="date"
-                        value={taskFormData.due_date}
-                        onChange={(e) => setTaskFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="due_date">Due Date</Label>
+                    <Input
+                      id="due_date"
+                      type="date"
+                      value={taskFormData.due_date}
+                      onChange={(e) => setTaskFormData(prev => ({ ...prev, due_date: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="time_period">Frequency</Label>
+                    <Select value={taskFormData.time_period} onValueChange={(value: "day" | "week" | "month" | "quarter" | "half_year" | "one_time") => 
+                      setTaskFormData(prev => ({ ...prev, time_period: value }))
+                    }>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select frequency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="day">Daily</SelectItem>
+                        <SelectItem value="week">Weekly</SelectItem>
+                        <SelectItem value="month">Monthly</SelectItem>
+                        <SelectItem value="quarter">Quarterly</SelectItem>
+                        <SelectItem value="half_year">Half Year</SelectItem>
+                        <SelectItem value="one_time">One Time</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {taskFormData.type === "task" && (
                     <div className="space-y-2">
                       <Label htmlFor="priority">Priority</Label>
                       <Select value={taskFormData.priority} onValueChange={(value: "low" | "medium" | "high") => 
@@ -295,24 +446,16 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
+                  )}
 
                   <div className="space-y-2">
-                    <Label htmlFor="time_period">Time Period</Label>
-                    <Select value={taskFormData.time_period} onValueChange={(value: "day" | "week" | "month" | "quarter" | "half_year") => 
-                      setTaskFormData(prev => ({ ...prev, time_period: value }))
-                    }>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select time period" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="day">Daily</SelectItem>
-                        <SelectItem value="week">Weekly</SelectItem>
-                        <SelectItem value="month">Monthly</SelectItem>
-                        <SelectItem value="quarter">Quarterly</SelectItem>
-                        <SelectItem value="half_year">Half Year</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="subject">Subject</Label>
+                    <Input
+                      id="subject"
+                      value={subject.name}
+                      disabled
+                      className="bg-gray-50"
+                    />
                   </div>
 
                   <div className="flex gap-2 pt-4">
@@ -326,12 +469,127 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
                 </form>
               </DialogContent>
             </Dialog>
+            
+            {/* Edit Task Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Task - {subject.name}</DialogTitle>
+                </DialogHeader>
+                {editingTask && (
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editingTask.title) {
+                      updateTaskMutation.mutate(editingTask);
+                    }
+                  }} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-type">Type *</Label>
+                      <Select value={editingTask.type} onValueChange={(value: "task" | "homework") => setEditingTask(prev => prev ? { ...prev, type: value } : null)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="task">Task</SelectItem>
+                          <SelectItem value="homework">Homework</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-title">Title *</Label>
+                      <Input
+                        id="edit-title"
+                        value={editingTask.title}
+                        onChange={(e) => setEditingTask(prev => prev ? { ...prev, title: e.target.value } : null)}
+                        placeholder="Enter title"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-description">Description</Label>
+                      <Textarea
+                        id="edit-description"
+                        value={editingTask.description}
+                        onChange={(e) => setEditingTask(prev => prev ? { ...prev, description: e.target.value } : null)}
+                        placeholder="Enter description"
+                        rows={3}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-due-date">Due Date</Label>
+                      <Input
+                        id="edit-due-date"
+                        type="date"
+                        value={editingTask.due_date || ""}
+                        onChange={(e) => setEditingTask(prev => prev ? { ...prev, due_date: e.target.value } : null)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                       <Label htmlFor="edit-time-period">Frequency</Label>
+                       <Select value={editingTask.time_period} onValueChange={(value: "day" | "week" | "month" | "quarter" | "half_year" | "one_time") => setEditingTask(prev => prev ? { ...prev, time_period: value } : null)}>
+                         <SelectTrigger>
+                           <SelectValue />
+                         </SelectTrigger>
+                         <SelectContent>
+                           <SelectItem value="day">Daily</SelectItem>
+                           <SelectItem value="week">Weekly</SelectItem>
+                           <SelectItem value="month">Monthly</SelectItem>
+                           <SelectItem value="quarter">Quarterly</SelectItem>
+                           <SelectItem value="half_year">Half Year</SelectItem>
+                           <SelectItem value="one_time">One Time</SelectItem>
+                         </SelectContent>
+                       </Select>
+                     </div>
+
+                    {editingTask.type === "task" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-priority">Priority</Label>
+                        <Select value={editingTask.priority} onValueChange={(value: "low" | "medium" | "high") => setEditingTask(prev => prev ? { ...prev, priority: value } : null)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-subject">Subject</Label>
+                      <Input
+                        id="edit-subject"
+                        value={subject.name}
+                        disabled
+                        className="bg-gray-50"
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-4">
+                      <Button type="submit" disabled={updateTaskMutation.isPending} className="flex-1">
+                        {updateTaskMutation.isPending ? "Updating..." : "Update Task"}
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </DialogContent>
+            </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          {tasks.length > 0 ? (
+          {filteredTasks.length > 0 ? (
             <div className="space-y-3">
-              {tasks.map((task) => (
+              {filteredTasks.map((task) => (
                 <div
                   key={task.id}
                   className={`p-4 rounded-lg border ${task.completed ? 'bg-muted/50' : 'bg-background'}`}
@@ -351,9 +609,15 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
                         <h4 className={`font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
                           {task.title}
                         </h4>
+                        <Badge className={`text-xs ${getTypeColor(task.type)}`}>
+                          {task.type === 'task' ? 'Task' : 'Homework'}
+                        </Badge>
                         <div className={`w-2 h-2 rounded-full ${getPriorityColor(task.priority)}`} />
                         <Badge variant="outline" className="text-xs">
                           {task.priority}
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          {task.time_period === 'one_time' ? 'One Time' : task.time_period}
                         </Badge>
                       </div>
                       
@@ -362,9 +626,7 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
                       )}
                       
                       <div className="flex items-center justify-between">
-                        <Badge variant="secondary" className="text-xs">
-                          {task.time_period}
-                        </Badge>
+                        <div></div>
                         {task.due_date && (
                           <div className="text-xs text-muted-foreground flex items-center gap-1">
                             <Clock className="h-3 w-3" />
@@ -373,6 +635,28 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
                         )}
                       </div>
                     </div>
+                    
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingTask(task);
+                          setIsEditDialogOpen(true);
+                        }}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteTaskMutation.mutate(task.id)}
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -380,8 +664,15 @@ function AssignmentManagement({ subject }: AssignmentManagementProps) {
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">No Tasks Yet</h3>
-              <p className="mb-4">Create and track assignments for this subject</p>
+              <h3 className="text-lg font-semibold mb-2">
+                {filterType === "all" ? "No Tasks Yet" : 
+                 filterType === "task" ? "No Tasks" : "No Homework"}
+              </h3>
+              <p className="mb-4">
+                {filterType === "all" ? "Create and track tasks and homework for this subject" :
+                 filterType === "task" ? "No tasks found. Create a new task or change the filter." :
+                 "No homework found. Create new homework or change the filter."}
+              </p>
             </div>
           )}
         </CardContent>
@@ -394,6 +685,71 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [isGradeDialogOpen, setIsGradeDialogOpen] = useState(false);
+
+  // Fetch tasks for this subject
+  const { data: tasks = [] } = useQuery({
+    queryKey: ["tasks", user?.id, subject.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(`
+          id,
+          title,
+          description,
+          due_date,
+          completed,
+          priority,
+          time_period,
+          subject_id,
+          type,
+          created_at,
+          updated_at,
+          user_id,
+          topic_id
+        `)
+        .eq("subject_id", subject.id)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      return data as Task[];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch grades for this subject
+  const { data: grades = [] } = useGrades(subject.id);
+
+  // Calculate statistics
+  const totalAssignments = tasks.length;
+  const completedTasks = tasks.filter(task => task.completed).length;
+  const upcomingDeadlines = tasks.filter(task => {
+    if (!task.due_date) return false;
+    const dueDate = new Date(task.due_date);
+    const now = new Date();
+    const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return dueDate >= now && dueDate <= oneWeekFromNow;
+  }).length;
+  const gradeEntries = grades.length;
+
+  // Get recent activity (last 5 items)
+  const recentActivity = [
+    ...tasks.slice(0, 3).map(task => ({
+      id: task.id,
+      type: 'task' as const,
+      title: task.title,
+      date: task.created_at,
+      status: task.completed ? 'completed' : 'pending'
+    })),
+    ...grades.slice(0, 2).map(grade => ({
+      id: grade.id,
+      type: 'grade' as const,
+      title: grade.title,
+      date: grade.date_received,
+      status: 'added'
+    }))
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
   if (!user) {
     return (
@@ -496,7 +852,7 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
 
       {/* Tabs for different views */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-5">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <BookOpen className="h-4 w-4" />
             <span className="hidden sm:inline">Overview</span>
@@ -507,11 +863,11 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
           </TabsTrigger>
           <TabsTrigger value="grades" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
-            <span className="hidden sm:inline">Grades</span>
+            <span className="hidden sm:inline">Noten</span>
           </TabsTrigger>
-          <TabsTrigger value="assignments" className="flex items-center gap-2">
+          <TabsTrigger value="tasks" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Tasks</span>
+            <span className="hidden sm:inline">Task Management</span>
           </TabsTrigger>
           <TabsTrigger value="analytics" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -532,19 +888,19 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Total Assignments</span>
-                  <Badge variant="outline">0</Badge>
+                  <Badge variant="outline">{totalAssignments}</Badge>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Completed Tasks</span>
-                  <Badge variant="outline">0</Badge>
+                  <Badge variant="outline">{completedTasks}</Badge>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Upcoming Deadlines</span>
-                  <Badge variant="outline">0</Badge>
+                  <Badge variant="outline">{upcomingDeadlines}</Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Grade Entries</span>
-                  <Badge variant="outline">0</Badge>
+                  <span className="text-sm font-medium">Noten Einträge</span>
+                  <Badge variant="outline">{gradeEntries}</Badge>
                 </div>
               </CardContent>
             </Card>
@@ -558,11 +914,48 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-6 text-muted-foreground">
-                  <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No recent activity</p>
-                  <p className="text-sm">Start adding grades and assignments to see activity here</p>
-                </div>
+                {recentActivity.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentActivity.map((activity) => (
+                      <div key={`${activity.type}-${activity.id}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                        <div className={`p-1.5 rounded-full ${
+                          activity.type === 'task' 
+                            ? activity.status === 'completed' 
+                              ? 'bg-green-100 text-green-600' 
+                              : 'bg-blue-100 text-blue-600'
+                            : 'bg-purple-100 text-purple-600'
+                        }`}>
+                          {activity.type === 'task' ? (
+                            activity.status === 'completed' ? (
+                              <CheckSquare className="h-3 w-3" />
+                            ) : (
+                              <FileText className="h-3 w-3" />
+                            )
+                          ) : (
+                            <TrendingUp className="h-3 w-3" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{activity.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {activity.type === 'task' 
+                              ? activity.status === 'completed' 
+                                ? 'Task completed' 
+                                : 'Task created'
+                              : 'Note hinzugefügt'
+                            } • {format(new Date(activity.date), "MMM dd")}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No recent activity</p>
+                    <p className="text-sm">Fügen Sie Noten und Aufgaben hinzu, um hier Aktivitäten zu sehen</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -573,48 +966,30 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Dialog open={isGradeDialogOpen} onOpenChange={setIsGradeDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="h-20 flex-col gap-2">
-                      <Plus className="h-6 w-6" />
-                      <span className="text-sm">Add Grade</span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add Grade - {subject.name}</DialogTitle>
-                    </DialogHeader>
-                    <GradeInput 
-                      subjectId={subject.id}
-                      subjectName={subject.name}
-                      onGradeAdded={() => setIsGradeDialogOpen(false)}
-                    />
-                  </DialogContent>
-                </Dialog>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Button 
                   variant="outline" 
                   className="h-20 flex-col gap-2"
-                  onClick={() => setActiveTab('assignments')}
+                  onClick={() => setActiveTab('tasks')}
                 >
-                  <FileText className="h-6 w-6" />
-                  <span className="text-sm">New Assignment</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex-col gap-2"
-                  onClick={() => setActiveTab('assignments')}
-                >
-                  <Calendar className="h-6 w-6" />
-                  <span className="text-sm">Schedule Test</span>
+                  <CheckSquare className="h-6 w-6" />
+                  <span className="text-sm">Add Task</span>
                 </Button>
                 <Button 
                   variant="outline" 
                   className="h-20 flex-col gap-2"
                   onClick={() => setActiveTab('grades')}
                 >
-                  <Users className="h-6 w-6" />
-                  <span className="text-sm">Log Participation</span>
+                  <BarChart3 className="h-6 w-6" />
+                  <span className="text-sm">Note hinzufügen</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="h-20 flex-col gap-2"
+                  onClick={() => setActiveTab('curriculum')}
+                >
+                  <BookOpen className="h-6 w-6" />
+                  <span className="text-sm">View Curriculum</span>
                 </Button>
               </div>
             </CardContent>
@@ -632,25 +1007,242 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
           <GradeManagement subject={subject} />
         </TabsContent>
 
-        <TabsContent value="assignments" className="space-y-6">
-          <AssignmentManagement subject={subject} />
+        <TabsContent value="tasks" className="space-y-6">
+          <TaskManagement subject={subject} />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">
+          {/* Performance Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Award className="h-4 w-4" />
+                  Current Average
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {grades.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className={`text-2xl font-bold ${getGradeColorClass(calculateSubjectAverage(grades) || 0)}`}>
+                      {calculateSubjectAverage(grades) ? formatGrade(calculateSubjectAverage(grades)!) : 'N/A'}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {calculateSubjectAverage(grades) ? getGermanGradeName(calculateSubjectAverage(grades)!) : 'Noch keine Noten'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground">Keine Noten verfügbar</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <TrendingUp className="h-4 w-4" />
+                  Noten Trend
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {grades.length >= 2 ? (
+                  <div className="space-y-2">
+                    {(() => {
+                      const sortedGrades = [...grades].sort((a, b) => new Date(a.date_received).getTime() - new Date(b.date_received).getTime());
+                      const firstGrade = sortedGrades[0]?.grade || 0;
+                      const lastGrade = sortedGrades[sortedGrades.length - 1]?.grade || 0;
+                      const trend = lastGrade < firstGrade ? 'improving' : lastGrade > firstGrade ? 'declining' : 'stable';
+                      const trendColor = trend === 'improving' ? 'text-green-600' : trend === 'declining' ? 'text-red-600' : 'text-blue-600';
+                      const trendIcon = trend === 'improving' ? '↗️' : trend === 'declining' ? '↘️' : '→';
+                      
+                      return (
+                        <div className={`text-lg font-semibold ${trendColor}`}>
+                          {trendIcon} {trend === 'improving' ? 'Improving' : trend === 'declining' ? 'Declining' : 'Stable'}
+                        </div>
+                      );
+                    })()}
+                    <p className="text-sm text-muted-foreground">
+                      Basierend auf {grades.length} Noten
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground">Benötigt 2+ Noten für Trend</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Activity className="h-4 w-4" />
+                  Performance Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {grades.length > 0 ? (
+                  <div className="space-y-2">
+                    {(() => {
+                      const average = calculateSubjectAverage(grades) || 0;
+                      const status = average <= 2.0 ? 'excellent' : average <= 3.0 ? 'good' : average <= 4.0 ? 'satisfactory' : 'needs_improvement';
+                      const statusColor = status === 'excellent' ? 'text-green-600' : status === 'good' ? 'text-blue-600' : status === 'satisfactory' ? 'text-yellow-600' : 'text-red-600';
+                      const statusText = status === 'excellent' ? 'Excellent' : status === 'good' ? 'Good' : status === 'satisfactory' ? 'Satisfactory' : 'Needs Improvement';
+                      
+                      return (
+                        <div className={`text-lg font-semibold ${statusColor}`}>
+                          {statusText}
+                        </div>
+                      );
+                    })()}
+                    <p className="text-sm text-muted-foreground">
+                      Keep up the good work!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground">No data available</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Grade Distribution */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5" />
-                Performance Analytics
+                Noten Verteilung
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12 text-muted-foreground">
-                <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <h3 className="text-lg font-semibold mb-2">Analytics Coming Soon</h3>
-                <p className="mb-4">Detailed performance analytics and insights</p>
-                <p className="text-sm">Add more grades and assignments to see analytics</p>
-              </div>
+              {grades.length > 0 ? (
+                <div className="space-y-4">
+                  {(() => {
+                    const gradeRanges = {
+                      'Sehr gut (1.0-1.5)': grades.filter(g => g.grade >= 1.0 && g.grade <= 1.5).length,
+                      'Gut (1.6-2.5)': grades.filter(g => g.grade >= 1.6 && g.grade <= 2.5).length,
+                      'Befriedigend (2.6-3.5)': grades.filter(g => g.grade >= 2.6 && g.grade <= 3.5).length,
+                      'Ausreichend (3.6-4.0)': grades.filter(g => g.grade >= 3.6 && g.grade <= 4.0).length,
+                      'Mangelhaft (4.1-5.0)': grades.filter(g => g.grade >= 4.1 && g.grade <= 5.0).length,
+                      'Ungenügend (5.1-6.0)': grades.filter(g => g.grade >= 5.1 && g.grade <= 6.0).length
+                    };
+                    
+                    return Object.entries(gradeRanges).map(([range, count]) => (
+                      <div key={range} className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{range}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-32 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full" 
+                              style={{ width: `${grades.length > 0 ? (count / grades.length) * 100 : 0}%` }}
+                            />
+                          </div>
+                          <span className="text-sm text-muted-foreground w-8">{count}</span>
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>Keine Noten für Verteilungsanalyse verfügbar</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Performance */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Aktuelle Leistung (Letzte 5 Noten)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {grades.length > 0 ? (
+                <div className="space-y-3">
+                  {grades
+                    .sort((a, b) => new Date(b.date_received).getTime() - new Date(a.date_received).getTime())
+                    .slice(0, 5)
+                    .map((grade, index) => (
+                      <div key={grade.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex-1">
+                          <h4 className="font-medium">{grade.title}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(grade.date_received).toLocaleDateString('de-DE')} • {grade.type}
+                          </p>
+                        </div>
+                        <div className={`text-lg font-bold px-3 py-1 rounded ${getGradeColorClass(grade.grade)}`}>
+                          {formatGrade(grade.grade)}
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>Keine aktuellen Noten anzuzeigen</p>
+                  <p className="text-sm">Fügen Sie Noten hinzu, um die Leistungshistorie zu sehen</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Performance Insights */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5" />
+                Performance Insights
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {grades.length > 0 ? (
+                <div className="space-y-4">
+                  {(() => {
+                    const average = calculateSubjectAverage(grades) || 0;
+                    const bestGrade = Math.min(...grades.map(g => g.grade));
+                    const worstGrade = Math.max(...grades.map(g => g.grade));
+                    const gradeRange = worstGrade - bestGrade;
+                    
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <h4 className="font-semibold text-green-600">Strengths</h4>
+                          <ul className="text-sm space-y-1">
+                            <li>• Best grade: {formatGrade(bestGrade)} ({getGermanGradeName(bestGrade)})</li>
+                            {average <= 2.5 && <li>• Consistently good performance</li>}
+                            {gradeRange <= 1.0 && <li>• Stable performance across assessments</li>}
+                            <li>• {grades.length} assessment{grades.length > 1 ? 's' : ''} completed</li>
+                          </ul>
+                        </div>
+                        <div className="space-y-2">
+                          <h4 className="font-semibold text-blue-600">Areas for Improvement</h4>
+                          <ul className="text-sm space-y-1">
+                            {average > 3.0 && <li>• Focus on improving overall average</li>}
+                            {gradeRange > 2.0 && <li>• Work on consistency across assessments</li>}
+                            {worstGrade > 4.0 && <li>• Address challenging topics (worst: {formatGrade(worstGrade)})</li>}
+                            <li>• Continue regular study habits</li>
+                          </ul>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No performance data available</p>
+                  <p className="text-sm">Fügen Sie Noten hinzu, um personalisierte Einblicke zu erhalten</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

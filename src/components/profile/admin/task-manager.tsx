@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useSubjects } from "@/hooks/use-subjects";
 import { useAuth } from "@/hooks/use-auth";
+import { useCanEdit } from "@/hooks/use-parent-permissions";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -43,6 +44,7 @@ const PRIORITIES = [
 
 export const TaskManager = () => {
   const { user } = useAuth();
+  const canEdit = useCanEdit();
   const { data: subjects = [] } = useSubjects();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -144,13 +146,14 @@ export const TaskManager = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Task Management</h3>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Task
-            </Button>
-          </DialogTrigger>
+        {canEdit && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Task
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New Task</DialogTitle>
@@ -263,83 +266,78 @@ export const TaskManager = () => {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {TIME_PERIODS.map((period) => (
-          <Card key={period.value}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                {period.label}
-                <Badge variant="secondary">{groupedTasks[period.value]?.length || 0}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {groupedTasks[period.value]?.map((task) => (
-                <div
-                  key={task.id}
-                  className={`p-3 rounded-lg border ${task.completed ? 'bg-muted/50' : 'bg-background'}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={task.completed}
-                      onChange={(e) => toggleTaskMutation.mutate({
-                        id: task.id,
-                        completed: e.target.checked
-                      })}
-                      className="mt-1 rounded"
-                    />
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <h4 className={`font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
-                          {task.title}
-                        </h4>
-                        <div className={`w-2 h-2 rounded-full ${getPriorityColor(task.priority)}`} />
-                      </div>
-                      
-                      {task.description && (
-                        <p className="text-sm text-muted-foreground">{task.description}</p>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckSquare className="h-5 w-5" />
+            All Tasks
+            <Badge variant="secondary">{tasks.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {tasks.map((task) => {
+            const timePeriod = TIME_PERIODS.find(p => p.value === task.time_period);
+            return (
+              <div
+                key={task.id}
+                className={`p-3 rounded-lg border ${task.completed ? 'bg-muted/50' : 'bg-background'}`}
+              >
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={task.completed}
+                    onChange={(e) => toggleTaskMutation.mutate({
+                      id: task.id,
+                      completed: e.target.checked
+                    })}
+                    className="mt-1 rounded"
+                  />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <h4 className={`font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
+                        {task.title}
+                      </h4>
+                      <Badge variant="outline" className="text-xs">
+                        {timePeriod?.label || 'Unknown'}
+                      </Badge>
+                      <div className={`w-2 h-2 rounded-full ${getPriorityColor(task.priority)}`} />
+                    </div>
+                    
+                    {task.description && (
+                      <p className="text-sm text-muted-foreground">{task.description}</p>
+                    )}
+                    
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="text-xs">
+                        {getSubjectName(task.subject_id)}
+                      </Badge>
+                      {task.due_date && (
+                        <div className={`flex items-center gap-1 ${
+                          isOverdue(task.due_date) && !task.completed ? 'text-red-500' : ''
+                        }`}>
+                          <Clock className="h-3 w-3" />
+                          {format(new Date(task.due_date), "MMM dd")}
+                        </div>
                       )}
-                      
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline" className="text-xs">
-                          {getSubjectName(task.subject_id)}
-                        </Badge>
-                        {task.due_date && (
-                          <div className={`flex items-center gap-1 ${
-                            isOverdue(task.due_date) && !task.completed ? 'text-red-500' : ''
-                          }`}>
-                            <Clock className="h-3 w-3" />
-                            {format(new Date(task.due_date), "MMM dd")}
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
                 </div>
-              ))}
-              
-              {(!groupedTasks[period.value] || groupedTasks[period.value].length === 0) && (
-                <p className="text-muted-foreground text-center py-8 text-sm">
-                  No {period.label.toLowerCase()} tasks yet
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </div>
+            );
+          })}
+          
+          {tasks.length === 0 && (
+            <p className="text-muted-foreground text-center py-8 text-sm">
+              No tasks yet
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
-      {tasks.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <CheckSquare className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="mt-4 text-lg font-medium">No tasks yet</h3>
-            <p className="text-muted-foreground">Create your first task to stay organized</p>
-          </CardContent>
-        </Card>
-      )}
+
     </div>
   );
 };

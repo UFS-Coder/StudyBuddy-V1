@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Github, Mail } from "lucide-react";
@@ -13,6 +14,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accountType, setAccountType] = useState<"student" | "parent">("student");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,6 +38,9 @@ const Auth = () => {
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            account_type: accountType,
+          },
         },
       });
 
@@ -56,7 +61,7 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -64,6 +69,31 @@ const Auth = () => {
       if (error) {
         toast.error(error.message);
       } else {
+        // Check if user has a profile and correct account type
+        if (data.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("account_type")
+            .eq("user_id", data.user.id)
+            .single();
+          
+          // If profile doesn't exist or account_type is missing, create/update it
+          if (!profile || !profile.account_type) {
+            const userMetadata = data.user.user_metadata || {};
+            const accountType = userMetadata.account_type || 'student';
+            
+            await supabase
+              .from("profiles")
+              .upsert({
+                user_id: data.user.id,
+                display_name: userMetadata.display_name || data.user.email,
+                account_type: accountType
+              }, {
+                onConflict: "user_id"
+              });
+          }
+        }
+        
         toast.success("Signed in successfully!");
         navigate("/");
       }
@@ -183,6 +213,18 @@ const Auth = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="account-type">Account Type</Label>
+                  <Select value={accountType} onValueChange={(value: "student" | "parent") => setAccountType(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select account type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="student">Student</SelectItem>
+                      <SelectItem value="parent">Parent</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creating account..." : "Create Account"}

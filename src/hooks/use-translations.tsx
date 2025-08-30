@@ -24,7 +24,7 @@ export const translations = {
     lk: "LK",
     gk: "GK",
     
-    // Grades
+    // Noten
     average: "Durchschnitt",
     progress: "Fortschritt",
     
@@ -82,13 +82,13 @@ export const translations = {
     overview: "Overview",
     subjects: "Subjects",
     upcomingAssessments: "Upcoming Assessments",
-    recentGrades: "Recent Grades",
+    recentGrades: "Recent Noten",
     
     // Subject types
     lk: "Advanced",
     gk: "Basic",
     
-    // Grades
+    // Noten
     average: "Average",
     progress: "Progress",
     
@@ -126,7 +126,7 @@ export const translations = {
     thisWeekShort: "this week",
     
     // Bottom navigation
-    notes: "Grades",
+    notes: "Noten",
     calendar: "Calendar",
     analysis: "Analysis",
     profile: "Profile"

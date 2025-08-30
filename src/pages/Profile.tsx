@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { User, Settings, BookOpen, Calendar, CheckSquare, FileText, PenTool } from "lucide-react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { ProfileSettings } from "@/components/profile/profile-settings";
 import { AdminConsole } from "@/components/profile/admin-console";
 import { Navbar } from "@/components/dashboard/navbar";
@@ -15,6 +15,10 @@ const Profile = () => {
   const { user, loading } = useAuth();
   const { data: profile } = useProfile();
   const { t } = useTranslations();
+  const [searchParams] = useSearchParams();
+  
+  const defaultTab = searchParams.get('tab') || 'settings';
+  const section = searchParams.get('section');
 
   const handleLanguageChange = (lang) => {
     console.log(`Language changed to: ${lang}`);
@@ -63,7 +67,7 @@ const Profile = () => {
           </Card>
 
           {/* Profile Tabs */}
-          <Tabs defaultValue="settings" className="space-y-6">
+          <Tabs defaultValue={defaultTab} className="space-y-6">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="settings" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
@@ -80,7 +84,7 @@ const Profile = () => {
             </TabsContent>
 
             <TabsContent value="admin">
-              <AdminConsole />
+              <AdminConsole defaultSection={section} />
             </TabsContent>
           </Tabs>
         </div>

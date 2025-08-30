@@ -8,6 +8,7 @@ interface MetricCardProps {
   changeType?: "positive" | "negative" | "neutral";
   icon: React.ReactNode;
   iconColor?: string;
+  onClick?: () => void;
 }
 
 export function MetricCard({ 
@@ -16,7 +17,8 @@ export function MetricCard({
   change, 
   changeType = "neutral", 
   icon, 
-  iconColor = "text-primary" 
+  iconColor = "text-primary",
+  onClick 
 }: MetricCardProps) {
   const getChangeColor = () => {
     switch (changeType) {
@@ -30,7 +32,13 @@ export function MetricCard({
   };
 
   return (
-    <Card className="p-4 shadow-card">
+    <Card 
+      className={cn(
+        "p-4 shadow-card",
+        onClick && "cursor-pointer hover:shadow-lg transition-shadow duration-200"
+      )}
+      onClick={onClick}
+    >
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">{title}</span>
