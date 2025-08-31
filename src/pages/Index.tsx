@@ -53,6 +53,7 @@ const Index = () => {
   const {
     currentFact,
     isLoading: isFactsLoading,
+    isNextFactLoading,
     initializeFacts,
     getNextFact,
     tellMeMore,
@@ -136,9 +137,9 @@ const Index = () => {
           
           // Active subjects
           if (metricsChanges.active_subjects) {
-            const subjectsChangeValue = metricsChanges.active_subjects.change_count;
+            const subjectsChangeValue = metricsChanges.active_subjects.change_percentage;
             if (Math.abs(subjectsChangeValue) >= 1) {
-              setSubjectsChange(`${subjectsChangeValue > 0 ? '+' : ''}${subjectsChangeValue}`);
+              setSubjectsChange(`${subjectsChangeValue > 0 ? '+' : ''}${Math.round(subjectsChangeValue)}`);
               setSubjectsChangeType(metricsChanges.active_subjects.change_type === 'positive' ? 'positive' : 
                                    metricsChanges.active_subjects.change_type === 'negative' ? 'negative' : 'neutral');
             } else {
@@ -152,9 +153,9 @@ const Index = () => {
           
           // Meldungen
           if (metricsChanges.meldungen) {
-            const meldungenChangeValue = metricsChanges.meldungen.change_count;
+            const meldungenChangeValue = metricsChanges.meldungen.change_percentage;
             if (Math.abs(meldungenChangeValue) >= 1) {
-              setMeldungenChange(`${meldungenChangeValue > 0 ? '+' : ''}${meldungenChangeValue}`);
+              setMeldungenChange(`${meldungenChangeValue > 0 ? '+' : ''}${Math.round(meldungenChangeValue)}`);
               setMeldungenChangeType(metricsChanges.meldungen.change_type === 'positive' ? 'positive' : 
                                     metricsChanges.meldungen.change_type === 'negative' ? 'negative' : 'neutral');
             } else {
@@ -551,7 +552,7 @@ const Index = () => {
         isOpen={isFactsOverlayOpen}
         onClose={handleFactsClose}
         fact={currentFact}
-        isLoading={loading}
+        isLoading={isNextFactLoading}
         onTellMeMore={handleTellMeMore}
         onNextFact={handleNextFact}
       />

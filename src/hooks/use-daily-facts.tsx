@@ -68,8 +68,9 @@ Provide 2-3 concise sentences (no more than 70-80 words) with additional context
 export const useDailyFacts = () => {
   const { user } = useAuth();
   const [currentFact, setCurrentFact] = useState<Fact | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [cache, setCache] = useState<DailyFactsCache | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isNextFactLoading, setIsNextFactLoading] = useState(false);
 
   // Get today's date in Berlin timezone
   const getTodayKey = () => {
@@ -213,15 +214,9 @@ export const useDailyFacts = () => {
     setIsLoading(true);
     
     try {
-      // Try to load from cache first
-      const cachedData = loadCache();
-      
-      if (cachedData && cachedData.facts.length > 0) {
-        setCache(cachedData);
-        setCurrentFact(cachedData.facts[cachedData.currentIndex] || cachedData.facts[0]);
-        setIsLoading(false);
-        return;
-      }
+      // Clear old cache and generate fresh facts
+      const cacheKey = `daily-facts-${user.id}`;
+      localStorage.removeItem(cacheKey);
 
       // Generate new facts for today
       const facts = await generateDailyFacts();
@@ -257,7 +252,7 @@ export const useDailyFacts = () => {
   const getNextFact = useCallback(async () => {
     if (!cache || !user?.id) return;
     
-    setIsLoading(true);
+    setIsNextFactLoading(true);
     
     try {
        // Get a random category for variety, but avoid the current fact's category if possible
@@ -312,7 +307,7 @@ export const useDailyFacts = () => {
       setCurrentFact(nextFact);
       saveCache(updatedCache);
     } finally {
-      setIsLoading(false);
+      setIsNextFactLoading(false);
     }
   }, [cache, saveCache, user?.id, currentFact]);
 
@@ -375,6 +370,7 @@ export const useDailyFacts = () => {
   return {
     currentFact,
     isLoading,
+    isNextFactLoading,
     initializeFacts,
     getNextFact,
     tellMeMore,

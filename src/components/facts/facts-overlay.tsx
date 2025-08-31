@@ -107,8 +107,24 @@ export const FactsOverlay: React.FC<FactsOverlayProps> = ({
             
             <CardContent className="space-y-3 sm:space-y-4 px-4 sm:px-6">
               {isLoading ? (
-                <div className="flex items-center justify-center py-6 sm:py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-primary"></div>
+                <div className="py-6 sm:py-8">
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-primary"></div>
+                  </div>
+                  <div className="overflow-hidden bg-muted/50 rounded-lg p-3">
+                    <div className="animate-pulse space-y-2">
+                      <div className="h-4 bg-muted-foreground/20 rounded animate-pulse"></div>
+                      <div className="h-4 bg-muted-foreground/20 rounded animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                      <div className="h-4 bg-muted-foreground/20 rounded animate-pulse w-3/4" style={{animationDelay: '0.4s'}}></div>
+                    </div>
+                    <div className="mt-3 overflow-hidden">
+                       <div className="whitespace-nowrap animate-marquee">
+                         <p className="text-xs text-muted-foreground inline-block">
+                           🤖 Generating fresh fact from AI... ✨ Please wait while we create something amazing for you... 🎯
+                         </p>
+                       </div>
+                     </div>
+                  </div>
                 </div>
               ) : fact ? (
                 <>

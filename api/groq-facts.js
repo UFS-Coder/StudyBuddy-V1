@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     }
 
     // Get Groq API key from environment variables
-    const groqApiKey = process.env.GROQ_API_KEY;
+    const groqApiKey = process.env.VITE_GROQ_API_KEY || process.env.GROQ_API_KEY;
     if (!groqApiKey) {
       console.error('GROQ_API_KEY not found in environment variables');
       return res.status(500).json({ error: 'API configuration error' });
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.1-70b-versatile',
+        model: 'llama-3.1-8b-instant',
         messages: [
           {
             role: 'system',
