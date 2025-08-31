@@ -119,7 +119,7 @@ export const useMetricsTracking = () => {
         .from('syllabus_topics')
         .select(`
           *,
-          subtopics:syllabus_subtopics(*)
+          subtopics(*)
         `)
         .eq('user_id', user.id);
       
