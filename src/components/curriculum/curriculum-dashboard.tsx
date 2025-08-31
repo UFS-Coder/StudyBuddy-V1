@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { useNavigate } from 'react-router-dom';
 import { 
   BookOpen, 
   Target, 
@@ -14,10 +15,17 @@ import {
   CheckCircle,
   Clock,
   AlertTriangle,
-  Palette
+  Palette,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Paperclip as AttachmentIcon,
+  Plus,
+  Eye
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 import { Tables } from '@/integrations/supabase/types';
 import { LearningObjectives } from './learning-objectives';
 import { ResourceAttachments } from './resource-attachments';
@@ -31,6 +39,18 @@ type ResourceAttachment = Tables<'resource_attachments'>;
 type SyllabusMilestone = Tables<'syllabus_milestones'>;
 type Theme = Tables<'themes'>;
 type Subject = Tables<'subjects'>;
+
+interface Note {
+  id: string;
+  title: string;
+  content: string;
+  time_period: "day" | "week" | "month" | "quarter" | "half_year";
+  subject_id: string | null;
+  topic_id: string | null;
+  subtopic_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 interface CurriculumDashboardProps {
   subjectId: string;
@@ -61,6 +81,7 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
   const [themes, setThemes] = useState<Theme[]>([]);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [selectedSubtopicId, setSelectedSubtopicId] = useState<string | null>(null);
+  const [expandedSubtopics, setExpandedSubtopics] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<CurriculumStats>({
     totalTopics: 0,
@@ -76,10 +97,99 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
     overdueMilestones: 0,
   });
   const { toast } = useToast();
+  const navigate = useNavigate();
+  
+  // Overlay state for notes
+  const [showSubtopicOverlay, setShowSubtopicOverlay] = useState(false);
+  const [subtopicNotes, setSubtopicNotes] = useState<Note[]>([]);
+  const [overlaySubtopicInfo, setOverlaySubtopicInfo] = useState<{subjectId: string, topicId: string, subtopicId: string} | null>(null);
+
+  // Fetch notes for overlay functionality
+  const { data: notes = [] } = useQuery({
+    queryKey: ['notes', userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as Note[];
+    },
+    enabled: !!userId,
+  });
 
   useEffect(() => {
     fetchAllData();
   }, [subjectId, userId]);
+
+  const toggleSubtopicCompletion = async (subtopicId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('subtopics')
+        .update({ completed: !currentStatus })
+        .eq('id', subtopicId);
+
+      if (error) throw error;
+
+      // Update local state
+      setSubtopics(prev => prev.map(subtopic => 
+        subtopic.id === subtopicId 
+          ? { ...subtopic, completed: !currentStatus }
+          : subtopic
+      ));
+
+      toast({
+        title: !currentStatus ? "Subtopic completed!" : "Subtopic marked as incomplete",
+        description: "Progress updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error updating subtopic:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update subtopic completion status.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleSubtopicExpansion = (subtopicId: string) => {
+    setExpandedSubtopics(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(subtopicId)) {
+        newSet.delete(subtopicId);
+      } else {
+        newSet.add(subtopicId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleNotesClick = (topicId: string, subtopicId: string) => {
+    // Filter notes for this specific subtopic
+    const existingNotes = notes.filter(note => {
+      const matchesSubject = note.subject_id === subjectId;
+      const matchesTopic = note.topic_id === topicId;
+      const matchesSubtopic = note.subtopic_id === subtopicId;
+      return matchesSubject && matchesTopic && matchesSubtopic;
+    });
+    
+    setSubtopicNotes(existingNotes);
+    setOverlaySubtopicInfo({ subjectId, topicId, subtopicId });
+    setShowSubtopicOverlay(true);
+  };
+
+  const handleViewNote = (note: Note) => {
+    // Navigate to notes page with the specific note
+    navigate(`/notes?subject_id=${note.subject_id}&topic_id=${note.topic_id}&subtopic_id=${note.subtopic_id}`);
+  };
+
+  const handleCreateNote = () => {
+    if (overlaySubtopicInfo) {
+      navigate(`/notes?subject_id=${overlaySubtopicInfo.subjectId}&topic_id=${overlaySubtopicInfo.topicId}&subtopic_id=${overlaySubtopicInfo.subtopicId}`);
+    }
+  };
 
   useEffect(() => {
     calculateStats();
@@ -378,28 +488,93 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
                                 {selectedTopicId === topic.id && topicSubtopics.length > 0 && (
                                   <div className="mt-3 space-y-2">
                                     {topicSubtopics.map((subtopic) => (
-                                      <div
-                                        key={subtopic.id}
-                                        className={`p-3 border rounded cursor-pointer transition-colors ${
-                                          selectedSubtopicId === subtopic.id ? 'border-green-500 bg-green-50' : 'hover:bg-gray-50'
-                                        } ${
-                                          subtopic.completed ? 'bg-green-100 border-green-300' : ''
-                                        }`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedSubtopicId(selectedSubtopicId === subtopic.id ? null : subtopic.id);
-                                        }}
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <CheckCircle className={`h-4 w-4 ${
-                                            subtopic.completed ? 'text-green-600' : 'text-gray-400'
-                                          }`} />
-                                          <span className={subtopic.completed ? 'line-through text-gray-500' : ''}>
-                                            {subtopic.title}
-                                          </span>
+                                      <div key={subtopic.id} className="space-y-2">
+                                        <div
+                                          className={`p-3 border rounded transition-colors ${
+                                            selectedSubtopicId === subtopic.id ? 'border-green-500 bg-green-50' : 'hover:bg-gray-50'
+                                          } ${
+                                            subtopic.completed ? 'bg-green-100 border-green-300' : ''
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <CheckCircle 
+                                              className={`h-4 w-4 cursor-pointer ${
+                                                subtopic.completed ? 'text-green-600' : 'text-gray-400'
+                                              }`}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleSubtopicCompletion(subtopic.id, subtopic.completed);
+                                              }}
+                                            />
+                                            <span className={`flex-1 ${
+                                              subtopic.completed ? 'line-through text-gray-500' : ''
+                                            }`}>
+                                              {subtopic.title}
+                                            </span>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleSubtopicExpansion(subtopic.id);
+                                              }}
+                                              className="p-1 hover:bg-gray-200 rounded transition-colors"
+                                            >
+                                              {expandedSubtopics.has(subtopic.id) ? (
+                                                <ChevronDown className="h-4 w-4 text-gray-600" />
+                                              ) : (
+                                                <ChevronRight className="h-4 w-4 text-gray-600" />
+                                              )}
+                                            </button>
+                                          </div>
+                                          {subtopic.description && (
+                                            <p className="text-sm text-gray-600 mt-1 ml-6">{subtopic.description}</p>
+                                          )}
                                         </div>
-                                        {subtopic.description && (
-                                          <p className="text-sm text-gray-600 mt-1 ml-6">{subtopic.description}</p>
+                                        
+                                        {/* Expandable Options */}
+                                        {expandedSubtopics.has(subtopic.id) && (
+                                          <div className="ml-6 p-3 bg-gray-50 border rounded-lg space-y-2">
+                                            <div className="flex flex-wrap gap-2">
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex items-center gap-2"
+                                                onClick={() => handleNotesClick(topic.id, subtopic.id)}
+                                              >
+                                                <FileText className="h-3 w-3" />
+                                                Notes
+                                              </Button>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex items-center gap-2"
+                                                onClick={() => {
+                                                  // TODO: Implement attachments functionality
+                                                  toast({
+                                                    title: "Attachments",
+                                                    description: "Attachments functionality coming soon!",
+                                                  });
+                                                }}
+                                              >
+                                                <AttachmentIcon className="h-3 w-3" />
+                                                Attachments
+                                              </Button>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex items-center gap-2"
+                                                onClick={() => {
+                                                  // TODO: Implement additional options
+                                                  toast({
+                                                    title: "More Options",
+                                                    description: "Additional options coming soon!",
+                                                  });
+                                                }}
+                                              >
+                                                <Target className="h-3 w-3" />
+                                                More
+                                              </Button>
+                                            </div>
+                                          </div>
                                         )}
                                       </div>
                                     ))}
@@ -452,28 +627,93 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
                             {selectedTopicId === topic.id && topicSubtopics.length > 0 && (
                               <div className="mt-3 space-y-2">
                                 {topicSubtopics.map((subtopic) => (
-                                  <div
-                                    key={subtopic.id}
-                                    className={`p-3 border rounded cursor-pointer transition-colors ${
-                                      selectedSubtopicId === subtopic.id ? 'border-green-500 bg-green-50' : 'hover:bg-gray-50'
-                                    } ${
-                                      subtopic.completed ? 'bg-green-100 border-green-300' : ''
-                                    }`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedSubtopicId(selectedSubtopicId === subtopic.id ? null : subtopic.id);
-                                    }}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <CheckCircle className={`h-4 w-4 ${
-                                        subtopic.completed ? 'text-green-600' : 'text-gray-400'
-                                      }`} />
-                                      <span className={subtopic.completed ? 'line-through text-gray-500' : ''}>
-                                        {subtopic.title}
-                                      </span>
+                                  <div key={subtopic.id} className="space-y-2">
+                                    <div
+                                      className={`p-3 border rounded transition-colors ${
+                                        selectedSubtopicId === subtopic.id ? 'border-green-500 bg-green-50' : 'hover:bg-gray-50'
+                                      } ${
+                                        subtopic.completed ? 'bg-green-100 border-green-300' : ''
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <CheckCircle 
+                                          className={`h-4 w-4 cursor-pointer ${
+                                            subtopic.completed ? 'text-green-600' : 'text-gray-400'
+                                          }`}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleSubtopicCompletion(subtopic.id, subtopic.completed);
+                                          }}
+                                        />
+                                        <span className={`flex-1 ${
+                                          subtopic.completed ? 'line-through text-gray-500' : ''
+                                        }`}>
+                                          {subtopic.title}
+                                        </span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleSubtopicExpansion(subtopic.id);
+                                          }}
+                                          className="p-1 hover:bg-gray-200 rounded transition-colors"
+                                        >
+                                          {expandedSubtopics.has(subtopic.id) ? (
+                                            <ChevronDown className="h-4 w-4 text-gray-600" />
+                                          ) : (
+                                            <ChevronRight className="h-4 w-4 text-gray-600" />
+                                          )}
+                                        </button>
+                                      </div>
+                                      {subtopic.description && (
+                                        <p className="text-sm text-gray-600 mt-1 ml-6">{subtopic.description}</p>
+                                      )}
                                     </div>
-                                    {subtopic.description && (
-                                      <p className="text-sm text-gray-600 mt-1 ml-6">{subtopic.description}</p>
+                                    
+                                    {/* Expandable Options */}
+                                    {expandedSubtopics.has(subtopic.id) && (
+                                      <div className="ml-6 p-3 bg-gray-50 border rounded-lg space-y-2">
+                                        <div className="flex flex-wrap gap-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center gap-2"
+                                            onClick={() => handleNotesClick(topic.id, subtopic.id)}
+                                          >
+                                            <FileText className="h-3 w-3" />
+                                            Notes
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center gap-2"
+                                            onClick={() => {
+                                              // TODO: Implement attachments functionality
+                                              toast({
+                                                title: "Attachments",
+                                                description: "Attachments functionality coming soon!",
+                                              });
+                                            }}
+                                          >
+                                            <AttachmentIcon className="h-3 w-3" />
+                                            Attachments
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center gap-2"
+                                            onClick={() => {
+                                              // TODO: Implement additional options
+                                              toast({
+                                                title: "More Options",
+                                                description: "Additional options coming soon!",
+                                              });
+                                            }}
+                                          >
+                                            <Target className="h-3 w-3" />
+                                            More
+                                          </Button>
+                                        </div>
+                                      </div>
                                     )}
                                   </div>
                                 ))}
@@ -539,6 +779,88 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
           />
         </TabsContent>
       </Tabs>
+      
+      {/* Subtopic Notes Overlay */}
+      {showSubtopicOverlay && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">
+                {subtopicNotes.length > 0 ? 'Notizen für dieses Unterthema' : 'Keine Notizen gefunden'}
+              </h3>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowSubtopicOverlay(false)}
+                className="h-8 w-8 p-0"
+              >
+                ×
+              </Button>
+            </div>
+            
+            {subtopicNotes.length > 0 ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Wähle eine Notiz aus, um sie zu öffnen:
+                </p>
+                {subtopicNotes.map((note) => (
+                  <div 
+                    key={note.id}
+                    className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => {
+                      handleViewNote(note);
+                      setShowSubtopicOverlay(false);
+                    }}
+                  >
+                    <h4 className="font-medium text-sm">{note.title}</h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(note.updated_at).toLocaleDateString('de-DE')}
+                    </p>
+                  </div>
+                ))}
+                <div className="pt-3 border-t">
+                  <Button 
+                    onClick={() => {
+                      setShowSubtopicOverlay(false);
+                      handleCreateNote();
+                    }}
+                    className="w-full gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Neue Notiz erstellen
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center">
+                <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  Für dieses Unterthema wurden noch keine Notizen erstellt.
+                </p>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline"
+                    onClick={() => setShowSubtopicOverlay(false)}
+                    className="flex-1"
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setShowSubtopicOverlay(false);
+                      handleCreateNote();
+                    }}
+                    className="flex-1 gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Erstellen
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

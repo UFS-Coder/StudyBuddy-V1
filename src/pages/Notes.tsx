@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
+import { useSearchParams } from "react-router-dom";
 
 interface Note {
   id: string;
@@ -38,11 +39,13 @@ const Notes = () => {
   const { data: subjects } = useSubjects();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [viewingNote, setViewingNote] = useState<Note | null>(null);
+
   const [formData, setFormData] = useState({
     title: "",
     content: "",
@@ -53,6 +56,8 @@ const Notes = () => {
   });
 
   const studentName = profile?.display_name || user?.email?.split("@")[0] || "Student";
+
+
 
   // Fetch topics based on selected subject
   const { data: topics = [] } = useQuery({
@@ -125,6 +130,27 @@ const Notes = () => {
     },
     enabled: !!user,
   });
+
+  // Handle URL parameters for pre-filling form data
+  useEffect(() => {
+    const subjectId = searchParams.get('subject_id');
+    const topicId = searchParams.get('topic_id');
+    const subtopicId = searchParams.get('subtopic_id');
+    
+    if (subjectId || topicId || subtopicId) {
+      setFormData(prev => ({
+        ...prev,
+        subject_id: subjectId || prev.subject_id,
+        topic_id: topicId || prev.topic_id,
+        subtopic_id: subtopicId || prev.subtopic_id,
+      }));
+      
+      // Set selected subject for filtering
+      if (subjectId) {
+        setSelectedSubject(subjectId);
+      }
+    }
+  }, [searchParams]);
 
   // Save note mutation
   const saveNoteMutation = useMutation({
@@ -223,13 +249,17 @@ const Notes = () => {
 
   const handleNewNote = () => {
     setEditingNote(null);
+    const urlSubjectId = searchParams.get("subject_id") || "";
+    const urlTopicId = searchParams.get("topic_id") || "";
+    const urlSubtopicId = searchParams.get("subtopic_id") || "";
+    
     setFormData({
       title: "",
       content: "",
       time_period: "week",
-      subject_id: "",
-      topic_id: "",
-      subtopic_id: "",
+      subject_id: urlSubjectId,
+      topic_id: urlTopicId,
+      subtopic_id: urlSubtopicId,
     });
     setIsCreateDialogOpen(true);
   };
@@ -404,7 +434,18 @@ const Notes = () => {
                     <Button type="submit" disabled={saveNoteMutation.isPending} className="flex-1">
                       {saveNoteMutation.isPending ? "Speichern..." : (editingNote ? "Aktualisieren" : "Erstellen")}
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                    <Button type="button" variant="outline" onClick={() => {
+                      setIsCreateDialogOpen(false);
+                      // Reset form data but preserve URL parameters for filtering
+                      setFormData({
+                        title: "",
+                        content: "",
+                        time_period: "week",
+                        subject_id: searchParams.get('subject_id') || "",
+                        topic_id: searchParams.get('topic_id') || "",
+                        subtopic_id: searchParams.get('subtopic_id') || "",
+                      });
+                    }}>
                       Abbrechen
                     </Button>
                   </div>
@@ -582,6 +623,7 @@ const Notes = () => {
           </div>
         )}
       </div>
+
       
       <BottomNavigation t={t} />
     </div>

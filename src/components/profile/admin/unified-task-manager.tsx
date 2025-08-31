@@ -102,24 +102,26 @@ export const UnifiedTaskManager = () => {
     enabled: !!user?.id,
   });
 
-  // Fetch homework
+  // Fetch homework from tasks table (homework table was unified into tasks)
   const { data: homework = [] } = useQuery({
     queryKey: ["homework", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
       const { data, error } = await supabase
-        .from("homework")
+        .from("tasks")
         .select("*")
         .eq("user_id", user.id)
+        .eq("type", "homework")
         .order("created_at", { ascending: false });
       
       if (error) throw error;
       return data.map(hw => ({
         ...hw,
         type: "homework" as const,
-        priority: "medium" as const,
-        topic_id: (hw as any).topic_id || null,
-        time_period: hw.time_period as "day" | "week" | "month" | "quarter" | "half_year" | "one_time" || "week"
+        priority: hw.priority || "medium" as const,
+        topic_id: hw.topic_id || null,
+        time_period: hw.time_period as "day" | "week" | "month" | "quarter" | "half_year" | "one_time" || "week",
+        submitted_at: null // Will be added when database migration runs
       })) as Task[];
     },
     enabled: !!user?.id,
@@ -136,9 +138,9 @@ export const UnifiedTaskManager = () => {
     mutationFn: async (taskData: typeof newTask) => {
       if (!user?.id) throw new Error("User not authenticated");
       
-      const table = taskData.type === "task" ? "tasks" : "homework";
+      // Always use tasks table since homework table was unified into tasks
       const { data, error } = await supabase
-        .from(table)
+        .from("tasks")
         .insert([{
           ...taskData,
           user_id: user.id,
@@ -173,9 +175,9 @@ export const UnifiedTaskManager = () => {
   // Toggle task completion
   const toggleTaskMutation = useMutation({
     mutationFn: async ({ id, completed, type }: { id: string; completed: boolean; type: "task" | "homework" }) => {
-      const table = type === "task" ? "tasks" : "homework";
+      // Always use tasks table since homework table was unified into tasks
       const { error } = await supabase
-        .from(table)
+        .from("tasks")
         .update({ completed })
         .eq("id", id);
       
@@ -190,12 +192,9 @@ export const UnifiedTaskManager = () => {
   // Delete task mutation
   const deleteTaskMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Try both tables since we don't know which one it's in
-      const { error: taskError } = await supabase.from("tasks").delete().eq("id", id);
-      if (taskError) {
-        const { error: homeworkError } = await supabase.from("homework").delete().eq("id", id);
-        if (homeworkError) throw homeworkError;
-      }
+      // Only use tasks table since homework table was unified into tasks
+      const { error } = await supabase.from("tasks").delete().eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -207,9 +206,9 @@ export const UnifiedTaskManager = () => {
   // Update task mutation
   const updateTaskMutation = useMutation({
     mutationFn: async (taskData: Task) => {
-      const table = taskData.type === "task" ? "tasks" : "homework";
+      // Always use tasks table since homework table was unified into tasks
       const { error } = await supabase
-        .from(table)
+        .from("tasks")
         .update(taskData)
         .eq("id", taskData.id);
       
