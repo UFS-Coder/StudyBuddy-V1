@@ -253,18 +253,68 @@ export const useDailyFacts = () => {
     }
   }, [user?.id, loadCache, saveCache]);
 
-  // Get next fact
-  const getNextFact = useCallback(() => {
-    if (!cache || !cache.facts.length) return;
+  // Get next fact - now generates fresh facts from Groq
+  const getNextFact = useCallback(async () => {
+    if (!cache || !user?.id) return;
     
-    const nextIndex = (cache.currentIndex + 1) % cache.facts.length;
-    const nextFact = cache.facts[nextIndex];
+    setIsLoading(true);
     
-    const updatedCache = { ...cache, currentIndex: nextIndex };
-    setCache(updatedCache);
-    setCurrentFact(nextFact);
-    saveCache(updatedCache);
-  }, [cache, saveCache]);
+    try {
+       // Get a random category for variety, but avoid the current fact's category if possible
+       let availableCategories = FACT_CATEGORIES;
+       if (currentFact && FACT_CATEGORIES.length > 1) {
+         availableCategories = FACT_CATEGORIES.filter(cat => cat !== currentFact.category);
+       }
+       const randomCategory = availableCategories[Math.floor(Math.random() * availableCategories.length)];
+       
+       // Add a small delay to show loading state
+       await new Promise(resolve => setTimeout(resolve, 500));
+       
+       // Try to generate a fresh fact from Groq
+       const factText = await fetchFactFromGroq(randomCategory);
+      
+      if (factText.trim()) {
+        const newFact: Fact = {
+          id: `${randomCategory}-${Date.now()}-${Math.random()}`,
+          category: randomCategory,
+          mainFact: factText.trim(),
+          timestamp: Date.now()
+        };
+        
+        setCurrentFact(newFact);
+        
+        // Add to cache but don't save to localStorage (keep it session-only for fresh facts)
+        const updatedCache = {
+          ...cache,
+          facts: [...cache.facts, newFact],
+          currentIndex: cache.facts.length
+        };
+        setCache(updatedCache);
+      } else {
+        // Fallback to cycling through existing facts if Groq fails
+        const nextIndex = (cache.currentIndex + 1) % cache.facts.length;
+        const nextFact = cache.facts[nextIndex];
+        
+        const updatedCache = { ...cache, currentIndex: nextIndex };
+        setCache(updatedCache);
+        setCurrentFact(nextFact);
+        saveCache(updatedCache);
+      }
+    } catch (error) {
+      console.error('Error generating next fact:', error);
+      
+      // Fallback to cycling through existing facts
+      const nextIndex = (cache.currentIndex + 1) % cache.facts.length;
+      const nextFact = cache.facts[nextIndex];
+      
+      const updatedCache = { ...cache, currentIndex: nextIndex };
+      setCache(updatedCache);
+      setCurrentFact(nextFact);
+      saveCache(updatedCache);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [cache, saveCache, user?.id, currentFact]);
 
   // Tell me more functionality
   const tellMeMore = useCallback(async () => {

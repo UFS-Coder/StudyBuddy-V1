@@ -222,8 +222,8 @@ const Index = () => {
   };
 
   // Handle next fact
-  const handleNextFact = () => {
-    getNextFact();
+  const handleNextFact = async () => {
+    await getNextFact();
   };
 
   // Handle tell me more
