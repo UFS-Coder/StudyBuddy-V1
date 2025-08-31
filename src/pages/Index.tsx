@@ -10,6 +10,8 @@ import { DurchschnittDashboard } from "@/components/grades/durchschnitt-dashboar
 import { TasksModal } from "@/components/dashboard/tasks-modal";
 import { HomeworkModal } from "@/components/dashboard/homework-modal";
 import { SubjectsModal } from "@/components/dashboard/subjects-modal";
+import { FactsOverlay } from "@/components/facts/facts-overlay";
+import { useDailyFacts } from "@/hooks/use-daily-facts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTranslations } from "@/hooks/use-translations";
@@ -45,6 +47,18 @@ const Index = () => {
   const [isTasksModalOpen, setIsTasksModalOpen] = useState(false);
   const [isHomeworkModalOpen, setIsHomeworkModalOpen] = useState(false);
   const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
+  const [isFactsOverlayOpen, setIsFactsOverlayOpen] = useState(false);
+
+  // Facts functionality
+  const {
+    currentFact,
+    isLoading: isFactsLoading,
+    initializeFacts,
+    getNextFact,
+    tellMeMore,
+    shouldShowFactsToday,
+    markFactsAsShown
+  } = useDailyFacts();
 
   // Initialize tracking hooks
   const { getMetricsChanges } = useMetricsTracking();
@@ -179,6 +193,43 @@ const Index = () => {
       fetchChanges();
     }
   }, [user?.id, selectedTimePeriod]);
+
+  // Initialize facts and show overlay on first visit
+  useEffect(() => {
+    const initFacts = async () => {
+      if (user?.id && !loading) {
+        await initializeFacts();
+        
+        // Show facts overlay if it's the first visit today
+        if (shouldShowFactsToday()) {
+          setIsFactsOverlayOpen(true);
+        }
+      }
+    };
+    
+    initFacts();
+  }, [user?.id, loading, initializeFacts, shouldShowFactsToday]);
+
+  // Handle facts overlay close
+  const handleFactsClose = () => {
+    setIsFactsOverlayOpen(false);
+    markFactsAsShown();
+  };
+
+  // Handle manual facts open
+  const handleFactsOpen = () => {
+    setIsFactsOverlayOpen(true);
+  };
+
+  // Handle next fact
+  const handleNextFact = () => {
+    getNextFact();
+  };
+
+  // Handle tell me more
+  const handleTellMeMore = () => {
+    tellMeMore();
+  };
 
   // Fetch topics for all subjects
   const { data: topics = [] } = useQuery({
@@ -330,7 +381,8 @@ const Index = () => {
         language={language} 
         onLanguageChange={setLanguage} 
         studentName={studentName}
-        t={t} 
+        t={t}
+        onFactsClick={handleFactsOpen}
       />
       
       <div className="container mx-auto px-4 py-6 space-y-6">
@@ -492,6 +544,16 @@ const Index = () => {
           };
         })}
         title="All Subjects"
+      />
+      
+      {/* Facts Overlay */}
+      <FactsOverlay
+        isOpen={isFactsOverlayOpen}
+        onClose={handleFactsClose}
+        fact={currentFact}
+        isLoading={loading}
+        onTellMeMore={handleTellMeMore}
+        onNextFact={handleNextFact}
       />
     </div>
   );

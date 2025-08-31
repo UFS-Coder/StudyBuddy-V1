@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Globe, Bell, Settings, LogOut, User, ChevronDown, UserPlus, Users } from "lucide-react";
+import { Globe, Bell, Settings, LogOut, User, ChevronDown, UserPlus, Users, Lightbulb } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useNavigate } from "react-router-dom";
 import {
@@ -29,9 +29,10 @@ interface NavbarProps {
   onLanguageChange: (lang: 'de' | 'en') => void;
   studentName: string;
   t: any;
+  onFactsClick?: () => void;
 }
 
-export const Navbar = ({ language, onLanguageChange, studentName, t }: NavbarProps) => {
+export const Navbar = ({ language, onLanguageChange, studentName, t, onFactsClick }: NavbarProps) => {
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
   const { data: profile } = useProfile();
@@ -128,6 +129,19 @@ export const Navbar = ({ language, onLanguageChange, studentName, t }: NavbarPro
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
+            
+            {onFactsClick && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={onFactsClick}
+                aria-label="Daily Facts" 
+                className="rounded-full"
+                title="💡 Facts"
+              >
+                <Lightbulb className="h-5 w-5" />
+              </Button>
             )}
             
             <Button variant="ghost" size="sm" aria-label="Benachrichtigungen" className="rounded-full">
