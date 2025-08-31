@@ -2,9 +2,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ParentProvider } from "@/contexts/parent-context";
+import { FloatingWidget } from "@/components/buddy";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
@@ -24,6 +25,30 @@ const queryClient = new QueryClient({
   },
 });
 
+const BuddyWrapper = () => {
+  const location = useLocation();
+  const isAuthPage = location.pathname === '/auth';
+  
+  return (
+    <>
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/subjects" element={<Subjects />} />
+        <Route path="/notes" element={<Notes />} />
+        <Route path="/calendar" element={<Calendar />} />
+        <Route path="/analysis" element={<Analysis />} />
+        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      
+      {/* Show Buddy on all pages except auth */}
+      {!isAuthPage && <FloatingWidget />}
+    </>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -32,17 +57,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <ParentProvider>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/subjects" element={<Subjects />} />
-              <Route path="/notes" element={<Notes />} />
-              <Route path="/calendar" element={<Calendar />} />
-              <Route path="/analysis" element={<Analysis />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <BuddyWrapper />
           </ParentProvider>
         </AuthProvider>
       </BrowserRouter>
