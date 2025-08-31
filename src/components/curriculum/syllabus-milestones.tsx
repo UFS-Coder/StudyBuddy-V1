@@ -1,3 +1,5 @@
+// COMMENTED OUT - Objectives and Milestones related code
+/*
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -428,3 +430,4 @@ export function SyllabusMilestones({ subjectId, userId }: SyllabusMilestonesProp
     </Card>
   );
 }
+*/

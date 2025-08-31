@@ -36,6 +36,7 @@ import { GradeInput } from '@/components/grades/grade-input';
 import { useAuth } from '@/hooks/use-auth';
 import { useGrades } from '@/hooks/use-grades';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatGrade, getGradeColorClass, getGermanGradeName, calculateSubjectAverage } from '@/lib/grade-calculations';
@@ -698,6 +699,7 @@ function TaskManagement({ subject, onBack }: TaskManagementProps) {
 
 export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState('overview');
   const [isGradeDialogOpen, setIsGradeDialogOpen] = useState(false);
 
@@ -777,11 +779,21 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
   return (
     <div className="space-y-6 mt-4 md:mt-6">
       {/* Header */}
-      <div className="flex items-center sm:gap-4 gap-2">
+      <div className="flex items-center justify-between sm:gap-4 gap-2">
         <Button variant="ghost" size="sm" onClick={onBack} className="px-2 sm:px-3">
           <ArrowLeft className="h-4 w-4 sm:mr-2" />
           <span className="hidden sm:inline">Back to Subjects</span>
         </Button>
+        {isMobile && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsGradeDialogOpen(true)}
+            className="px-2"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {/* Subject Overview Card */}
@@ -792,8 +804,19 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
               <div className="p-3 bg-primary/10 rounded-lg">
                 <BookOpen className="h-6 w-6 text-primary" />
               </div>
-              <div className="min-w-0">
-                <CardTitle className="text-xl md:text-2xl truncate">{subject.name}</CardTitle>
+              <div className="min-w-0 flex-1">
+                {isMobile ? (
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xl md:text-2xl truncate">{subject.name}</CardTitle>
+                    {subject.room && (
+                      <span className="text-sm text-muted-foreground truncate">
+                        Room: {subject.room}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <CardTitle className="text-xl md:text-2xl truncate">{subject.name}</CardTitle>
+                )}
                 <div className="flex flex-wrap items-center gap-2 mt-2">
                   <Badge variant="secondary">
                     {subject.credits} Credits
@@ -803,7 +826,7 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
                       Teacher: {subject.teacher}
                     </span>
                   )}
-                  {subject.room && (
+                  {!isMobile && subject.room && (
                     <span className="text-sm text-muted-foreground truncate">
                       Room: {subject.room}
                     </span>
@@ -811,14 +834,16 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
                 </div>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="w-full md:w-auto justify-center">
-              <Settings className="h-4 w-4 md:mr-2" />
-              <span className="hidden md:inline">Settings</span>
-            </Button>
+            {!isMobile && (
+              <Button variant="outline" size="sm" className="w-full md:w-auto justify-center">
+                <Settings className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">Settings</span>
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-3'}`}>
             {/* Current Grade */}
             <div className="text-center p-3 md:p-4 bg-blue-50 rounded-lg">
               <div className={`text-lg md:text-2xl font-bold ${subject.current_grade ? getGradeColorClass(subject.current_grade).split(' ')[0] : 'text-blue-700'}`}>
@@ -867,28 +892,30 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
 
       {/* Tabs for different views */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-5">
-          <TabsTrigger value="overview" className="flex items-center gap-1 md:gap-2 px-2 md:px-3">
-            <BarChart3 className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs md:text-sm">Overview</span>
-          </TabsTrigger>
-          <TabsTrigger value="curriculum" className="flex items-center gap-1 md:gap-2 px-2 md:px-3">
-            <Target className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs md:text-sm">Curriculum</span>
-          </TabsTrigger>
-          <TabsTrigger value="grades" className="flex items-center gap-1 md:gap-2 px-2 md:px-3">
-            <TrendingUp className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs md:text-sm">Noten</span>
-          </TabsTrigger>
-          <TabsTrigger value="tasks" className="flex items-center gap-1 md:gap-2 px-2 md:px-3">
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs md:text-sm">Tasks</span>
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center gap-1 md:gap-2 px-2 md:px-3">
-            <BarChart3 className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs md:text-sm">Analytics</span>
-          </TabsTrigger>
-        </TabsList>
+        <div className={`${isMobile ? 'overflow-x-auto' : ''}`}>
+          <TabsList className={`${isMobile ? 'flex w-max min-w-full' : 'grid w-full grid-cols-3 md:grid-cols-5'}`}>
+            <TabsTrigger value="overview" className={`flex items-center gap-1 md:gap-2 px-2 md:px-3 ${isMobile ? 'flex-shrink-0' : ''}`}>
+              <BarChart3 className="h-4 w-4" />
+              <span className={`${isMobile ? 'text-xs' : 'hidden sm:inline text-xs md:text-sm'}`}>Overview</span>
+            </TabsTrigger>
+            <TabsTrigger value="curriculum" className={`flex items-center gap-1 md:gap-2 px-2 md:px-3 ${isMobile ? 'flex-shrink-0' : ''}`}>
+              <Target className="h-4 w-4" />
+              <span className={`${isMobile ? 'text-xs' : 'hidden sm:inline text-xs md:text-sm'}`}>Curriculum</span>
+            </TabsTrigger>
+            <TabsTrigger value="grades" className={`flex items-center gap-1 md:gap-2 px-2 md:px-3 ${isMobile ? 'flex-shrink-0' : ''}`}>
+              <TrendingUp className="h-4 w-4" />
+              <span className={`${isMobile ? 'text-xs' : 'hidden sm:inline text-xs md:text-sm'}`}>Noten</span>
+            </TabsTrigger>
+            <TabsTrigger value="tasks" className={`flex items-center gap-1 md:gap-2 px-2 md:px-3 ${isMobile ? 'flex-shrink-0' : ''}`}>
+              <FileText className="h-4 w-4" />
+              <span className={`${isMobile ? 'text-xs' : 'hidden sm:inline text-xs md:text-sm'}`}>Tasks</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className={`flex items-center gap-1 md:gap-2 px-2 md:px-3 ${isMobile ? 'flex-shrink-0' : ''}`}>
+              <BarChart3 className="h-4 w-4" />
+              <span className={`${isMobile ? 'text-xs' : 'hidden sm:inline text-xs md:text-sm'}`}>Analytics</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -981,29 +1008,29 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className={`grid gap-3 ${isMobile ? 'grid-cols-1' : 'grid-cols-2 md:grid-cols-3'}`}>
                 <Button 
                   variant="outline" 
-                  className="h-16 md:h-20 flex-col gap-2"
+                  className={`${isMobile ? 'h-12 flex-row justify-start gap-3' : 'h-16 md:h-20 flex-col gap-2'}`}
                   onClick={() => setActiveTab('tasks')}
                 >
-                  <CheckSquare className="h-6 w-6" />
+                  <CheckSquare className="h-5 w-5" />
                   <span className="text-sm">Add Task</span>
                 </Button>
                 <Button 
                   variant="outline" 
-                  className="h-16 md:h-20 flex-col gap-2"
+                  className={`${isMobile ? 'h-12 flex-row justify-start gap-3' : 'h-16 md:h-20 flex-col gap-2'}`}
                   onClick={() => setActiveTab('grades')}
                 >
-                  <BarChart3 className="h-6 w-6" />
+                  <BarChart3 className="h-5 w-5" />
                   <span className="text-sm">Note hinzufügen</span>
                 </Button>
                 <Button 
                   variant="outline" 
-                  className="h-16 md:h-20 flex-col gap-2"
+                  className={`${isMobile ? 'h-12 flex-row justify-start gap-3' : 'h-16 md:h-20 flex-col gap-2'}`}
                   onClick={() => setActiveTab('curriculum')}
                 >
-                  <BookOpen className="h-6 w-6" />
+                  <BookOpen className="h-5 w-5" />
                   <span className="text-sm">View Curriculum</span>
                 </Button>
               </div>
@@ -1147,10 +1174,10 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
                     } as Record<string, number>;
                     
                     return Object.entries(gradeRanges).map(([range, count]) => (
-                      <div key={range} className="flex items-center justify-between">
+                      <div key={range} className={`${isMobile ? 'space-y-2' : 'flex items-center justify-between'}`}>
                         <span className="text-sm font-medium">{range}</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-32 bg-gray-200 rounded-full h-2">
+                        <div className={`flex items-center gap-2 ${isMobile ? 'justify-between' : ''}`}>
+                          <div className={`${isMobile ? 'flex-1' : 'w-32'} bg-gray-200 rounded-full h-2`}>
                             <div 
                               className="bg-blue-600 h-2 rounded-full" 
                               style={{ width: `${grades.length > 0 ? (count / grades.length) * 100 : 0}%` }}

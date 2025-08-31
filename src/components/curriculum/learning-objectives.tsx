@@ -1,3 +1,5 @@
+// COMMENTED OUT - Objectives and Milestones related code
+/*
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -175,125 +177,24 @@ export function LearningObjectives({ topicId, subtopicId, userId }: LearningObje
     );
   }
 
+  // COMMENTED OUT - Learning Objectives UI
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Target className="h-5 w-5" />
-            Learning Objectives
-            {totalCount > 0 && (
-              <Badge variant="outline">
-                {completedCount}/{totalCount}
-              </Badge>
-            )}
+            Learning Objectives (Disabled)
           </div>
-          <Button
-            onClick={() => setIsAdding(true)}
-            size="sm"
-            variant="outline"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add Objective
-          </Button>
         </CardTitle>
-        {totalCount > 0 && (
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${progressPercentage}%` }}
-            ></div>
-          </div>
-        )}
       </CardHeader>
-      <CardContent className="space-y-3">
-        {objectives.map((objective) => (
-          <div
-            key={objective.id}
-            className={`flex items-start gap-3 p-3 rounded-lg border ${
-              objective.completed ? 'bg-green-50 border-green-200' : 'bg-gray-50'
-            }`}
-          >
-            <Checkbox
-              checked={objective.completed || false}
-              onCheckedChange={(checked) => 
-                updateObjective(objective.id, { completed: !!checked })
-              }
-              className="mt-1"
-            />
-            <div className="flex-1">
-              <h4 className={`font-medium ${
-                objective.completed ? 'line-through text-gray-500' : ''
-              }`}>
-                {objective.title}
-              </h4>
-              {objective.description && (
-                <p className={`text-sm text-gray-600 mt-1 ${
-                  objective.completed ? 'line-through' : ''
-                }`}>
-                  {objective.description}
-                </p>
-              )}
-            </div>
-            <div className="flex gap-1">
-              <Button
-                onClick={() => setEditingId(objective.id)}
-                size="sm"
-                variant="ghost"
-              >
-                <Edit2 className="h-3 w-3" />
-              </Button>
-              <Button
-                onClick={() => deleteObjective(objective.id)}
-                size="sm"
-                variant="ghost"
-                className="text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
-        ))}
-
-        {isAdding && (
-          <div className="p-3 border rounded-lg bg-white space-y-3">
-            <Input
-              placeholder="Objective title"
-              value={newObjective.title}
-              onChange={(e) => setNewObjective({ ...newObjective, title: e.target.value })}
-            />
-            <Textarea
-              placeholder="Description (optional)"
-              value={newObjective.description}
-              onChange={(e) => setNewObjective({ ...newObjective, description: e.target.value })}
-              rows={2}
-            />
-            <div className="flex gap-2">
-              <Button onClick={addObjective} size="sm">
-                Add
-              </Button>
-              <Button
-                onClick={() => {
-                  setIsAdding(false);
-                  setNewObjective({ title: '', description: '' });
-                }}
-                size="sm"
-                variant="outline"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {objectives.length === 0 && !isAdding && (
-          <div className="text-center py-6 text-gray-500">
-            <Target className="h-12 w-12 mx-auto mb-2 opacity-50" />
-            <p>No learning objectives yet</p>
-            <p className="text-sm">Add objectives to track your learning progress</p>
-          </div>
-        )}
+      <CardContent>
+        <div className="text-center py-6 text-gray-500">
+          <Target className="h-12 w-12 mx-auto mb-2 opacity-50" />
+          <p>Learning Objectives feature is currently disabled</p>
+        </div>
       </CardContent>
     </Card>
   );
 }
+*/

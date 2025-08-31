@@ -27,9 +27,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { Tables } from '@/integrations/supabase/types';
-import { LearningObjectives } from './learning-objectives';
-import { ResourceAttachments } from './resource-attachments';
-import { SyllabusMilestones } from './syllabus-milestones';
+// COMMENTED OUT - Objectives and Milestones related imports
+// import { LearningObjectives } from './learning-objectives';
+// import { ResourceAttachments } from './resource-attachments';
+// import { SyllabusMilestones } from './syllabus-milestones';
 import { format, isAfter, isBefore, addDays } from 'date-fns';
 
 type SyllabusTopic = Tables<'syllabus_topics'>;
@@ -75,9 +76,10 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [topics, setTopics] = useState<SyllabusTopic[]>([]);
   const [subtopics, setSubtopics] = useState<Subtopic[]>([]);
-  const [objectives, setObjectives] = useState<LearningObjective[]>([]);
+  // COMMENTED OUT - Objectives and Milestones state
+  // const [objectives, setObjectives] = useState<LearningObjective[]>([]);
   const [resources, setResources] = useState<ResourceAttachment[]>([]);
-  const [milestones, setMilestones] = useState<SyllabusMilestone[]>([]);
+  // const [milestones, setMilestones] = useState<SyllabusMilestone[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [selectedSubtopicId, setSelectedSubtopicId] = useState<string | null>(null);
@@ -193,7 +195,7 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
 
   useEffect(() => {
     calculateStats();
-  }, [topics, subtopics, objectives, resources, milestones]);
+  }, [topics, subtopics, /* objectives, */ resources, /* milestones */]);
 
   const fetchAllData = async () => {
     try {
@@ -211,29 +213,32 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
       const topicIds = (topicsRes.data || []).map(topic => topic.id);
       
       // Fetch all data in parallel, filtering subtopics by topic IDs
-       const [subtopicsRes, objectivesRes, resourcesRes, milestonesRes] = await Promise.all([
+       const [subtopicsRes, /* objectivesRes, */ resourcesRes, /* milestonesRes */] = await Promise.all([
          topicIds.length > 0 
            ? supabase.from('subtopics').select('*').in('topic_id', topicIds).eq('user_id', userId).order('order_index')
            : Promise.resolve({ data: [], error: null }),
-        supabase.from('learning_objectives').select('*').eq('user_id', userId).order('order_index'),
+        // COMMENTED OUT - Objectives and Milestones data fetching
+        // supabase.from('learning_objectives').select('*').eq('user_id', userId).order('order_index'),
         supabase.from('resource_attachments').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
-        supabase.from('syllabus_milestones').select('*').eq('subject_id', subjectId).eq('user_id', userId).order('target_date'),
+        // supabase.from('syllabus_milestones').select('*').eq('subject_id', subjectId).eq('user_id', userId).order('target_date'),
       ]);
       
       // Get subtopic IDs for filtering objectives and resources
       const subtopicIds = (subtopicsRes.data || []).map(subtopic => subtopic.id);
 
       if (subtopicsRes.error) throw subtopicsRes.error;
-      if (objectivesRes.error) throw objectivesRes.error;
+      // COMMENTED OUT - Objectives and Milestones error checking
+      // if (objectivesRes.error) throw objectivesRes.error;
       if (resourcesRes.error) throw resourcesRes.error;
-      if (milestonesRes.error) throw milestonesRes.error;
+      // if (milestonesRes.error) throw milestonesRes.error;
 
       setThemes(themesRes.data || []);
       setTopics(topicsRes.data || []);
       setSubtopics(subtopicsRes.data || []);
-      setObjectives(objectivesRes.data || []);
+      // COMMENTED OUT - Objectives and Milestones state setting
+      // setObjectives(objectivesRes.data || []);
       setResources(resourcesRes.data || []);
-      setMilestones(milestonesRes.data || []);
+      // setMilestones(milestonesRes.data || []);
     } catch (error) {
       console.error('Error fetching curriculum data:', error);
       toast({
@@ -249,22 +254,23 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
   const calculateStats = () => {
     const topicIds = topics.map(t => t.id);
     const topicSubtopics = subtopics.filter(s => topicIds.includes(s.topic_id));
-    const topicObjectives = objectives.filter(o => 
-      (o.topic_id && topicIds.includes(o.topic_id)) || 
-      (o.subtopic_id && topicSubtopics.some(s => s.id === o.subtopic_id))
-    );
+    // COMMENTED OUT - Objectives and Milestones calculations
+    // const topicObjectives = objectives.filter(o => 
+    //   (o.topic_id && topicIds.includes(o.topic_id)) || 
+    //   (o.subtopic_id && topicSubtopics.some(s => s.id === o.subtopic_id))
+    // );
     const topicResources = resources.filter(r => 
       (r.topic_id && topicIds.includes(r.topic_id)) || 
       (r.subtopic_id && topicSubtopics.some(s => s.id === r.subtopic_id))
     );
 
-    const now = new Date();
-    const upcomingMilestones = milestones.filter(m => 
-      !m.completed && m.target_date && isAfter(new Date(m.target_date), now)
-    );
-    const overdueMilestones = milestones.filter(m => 
-      !m.completed && m.target_date && isBefore(new Date(m.target_date), now)
-    );
+    // const now = new Date();
+    // const upcomingMilestones = milestones.filter(m => 
+    //   !m.completed && m.target_date && isAfter(new Date(m.target_date), now)
+    // );
+    // const overdueMilestones = milestones.filter(m => 
+    //   !m.completed && m.target_date && isBefore(new Date(m.target_date), now)
+    // );
 
     setStats({
       totalTopics: topics.length,
@@ -274,13 +280,14 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
       }).length,
       totalSubtopics: topicSubtopics.length,
       completedSubtopics: topicSubtopics.filter(s => s.completed).length,
-      totalObjectives: topicObjectives.length,
-      completedObjectives: topicObjectives.filter(o => o.completed).length,
+      // COMMENTED OUT - Objectives and Milestones stats
+      totalObjectives: 0, // topicObjectives.length,
+      completedObjectives: 0, // topicObjectives.filter(o => o.completed).length,
       totalResources: topicResources.length,
-      totalMilestones: milestones.length,
-      completedMilestones: milestones.filter(m => m.completed).length,
-      upcomingMilestones: upcomingMilestones.length,
-      overdueMilestones: overdueMilestones.length,
+      totalMilestones: 0, // milestones.length,
+      completedMilestones: 0, // milestones.filter(m => m.completed).length,
+      upcomingMilestones: 0, // upcomingMilestones.length,
+      overdueMilestones: 0, // overdueMilestones.length,
     });
   };
 
@@ -351,7 +358,7 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
 
   return (
     <div className="space-y-6">
-      {/* Overview Stats */}
+      {/* Merged Curriculum Overview and Topics Progress */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -360,59 +367,35 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-700">{stats.completedSubtopics}</div>
-              <div className="text-sm text-blue-600">of {stats.totalSubtopics} Topics</div>
-              <div className="text-xs text-gray-500">Completed</div>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-700">{stats.completedObjectives}</div>
-              <div className="text-sm text-green-600">of {stats.totalObjectives} Objectives</div>
-              <div className="text-xs text-gray-500">Achieved</div>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-700">{stats.totalResources}</div>
-              <div className="text-sm text-purple-600">Resources</div>
-              <div className="text-xs text-gray-500">Available</div>
-            </div>
-            <div className="text-center p-4 bg-orange-50 rounded-lg">
-              <div className="text-2xl font-bold text-orange-700">{stats.upcomingMilestones}</div>
-              <div className="text-sm text-orange-600">Upcoming</div>
-              <div className="text-xs text-gray-500">Milestones</div>
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Overall Progress</span>
-              <span>{Math.round(getOverallProgress())}%</span>
-            </div>
-            <Progress value={getOverallProgress()} className="h-2" />
-          </div>
-
-          {stats.overdueMilestones > 0 && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-center gap-2 text-red-700">
-                <AlertTriangle className="h-4 w-4" />
-                <span className="font-medium">
-                  {stats.overdueMilestones} overdue milestone{stats.overdueMilestones > 1 ? 's' : ''}
-                </span>
+          {/* Compact Overview Stats */}
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg mb-6 space-y-4">
+            <div className="flex items-center justify-center gap-4">
+              <div className="text-center">
+                <div className="text-xl font-bold text-blue-700">{stats.completedSubtopics}</div>
+                <div className="text-xs text-blue-600">of {stats.totalSubtopics}</div>
+                <div className="text-xs text-gray-500">Topics</div>
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <div className="w-full">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="font-medium">Overall Progress</span>
+                <span className="font-semibold text-indigo-600">{Math.round(getOverallProgress())}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-4">
+                <div 
+                  className="bg-gradient-to-r from-indigo-500 to-purple-600 h-4 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${getOverallProgress()}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
 
-      {/* Topics Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5" />
-            Topics Progress
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          {/* Topics Progress Section */}
+          <div className="border-t pt-6">
+            <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Topics Progress
+            </h3>
           <div className="space-y-4">
             {(() => {
               const { themeGroups, ungroupedTopics } = getTopicsByTheme();
@@ -734,35 +717,22 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
                   )}
                 </>
               );
-            })()}
+            })()
+          }
+          </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Detailed Components */}
-      <Tabs defaultValue="objectives" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="objectives" className="flex items-center gap-2">
-            <Target className="h-4 w-4" />
-            Objectives
-          </TabsTrigger>
+      {/* COMMENTED OUT - Resources tab removed as it was the only remaining tab after objectives and milestones were commented out */}
+      {/* 
+      <Tabs defaultValue="resources" className="w-full">
+        <TabsList className="grid w-full grid-cols-1">
           <TabsTrigger value="resources" className="flex items-center gap-2">
             <Paperclip className="h-4 w-4" />
             Resources
           </TabsTrigger>
-          <TabsTrigger value="milestones" className="flex items-center gap-2">
-            <Flag className="h-4 w-4" />
-            Milestones
-          </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="objectives" className="space-y-4">
-          <LearningObjectives
-            topicId={selectedTopicId || undefined}
-            subtopicId={selectedSubtopicId || undefined}
-            userId={userId}
-          />
-        </TabsContent>
 
         <TabsContent value="resources" className="space-y-4">
           <ResourceAttachments
@@ -771,14 +741,8 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
             userId={userId}
           />
         </TabsContent>
-
-        <TabsContent value="milestones" className="space-y-4">
-          <SyllabusMilestones
-            subjectId={subjectId}
-            userId={userId}
-          />
-        </TabsContent>
       </Tabs>
+      */}
       
       {/* Subtopic Notes Overlay */}
       {showSubtopicOverlay && (
