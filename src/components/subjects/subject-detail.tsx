@@ -57,7 +57,7 @@ function GradeManagement({ subject }: GradeManagementProps) {
   const { data: grades = [], refetch } = useGrades(subject.id);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-4 md:mt-6">
       {/* Add Grade Section */}
       <Card>
         <CardHeader>
@@ -137,9 +137,10 @@ interface Task {
 
 interface TaskManagementProps {
   subject: Subject;
+  onBack: () => void;
 }
 
-function TaskManagement({ subject }: TaskManagementProps) {
+function TaskManagement({ subject, onBack }: TaskManagementProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -323,45 +324,56 @@ function TaskManagement({ subject }: TaskManagementProps) {
       {/* Create Task Section */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Task Management
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 border rounded-lg p-1">
-                <Button
-                  variant={filterType === "all" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setFilterType("all")}
-                >
-                  All
-                </Button>
-                <Button
-                  variant={filterType === "task" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setFilterType("task")}
-                >
-                  Tasks
-                </Button>
-                <Button
-                  variant={filterType === "homework" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setFilterType("homework")}
-                >
-                  Homework
-                </Button>
-              </div>
-              <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Task
+          <div className="flex items-center sm:gap-4 gap-2">
+            <Button variant="ghost" size="sm" onClick={onBack} className="px-2 sm:px-3">
+              <ArrowLeft className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Back to Subjects</span>
+            </Button>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
+                Task Management
+              </CardTitle>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="flex items-center gap-1 border rounded-lg p-1">
+                  <Button
+                    variant={filterType === "all" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setFilterType("all")}
+                    className="text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    All
                   </Button>
-                </DialogTrigger>
-                <DialogContent>
+                  <Button
+                    variant={filterType === "task" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setFilterType("task")}
+                    className="text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    Tasks
+                  </Button>
+                  <Button
+                    variant={filterType === "homework" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setFilterType("homework")}
+                    className="text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    <span className="hidden sm:inline">Homework</span>
+                    <span className="sm:hidden">HW</span>
+                  </Button>
+                </div>
+                <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="w-full sm:w-auto">
+                      <Plus className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">Create Task</span>
+                      <span className="sm:hidden">Create</span>
+                    </Button>
+                  </DialogTrigger>
+                <DialogContent className="w-[95vw] sm:w-full max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Create New Task - {subject.name}</DialogTitle>
+                  <DialogTitle className="text-base sm:text-lg">Create New Task - {subject.name}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
@@ -458,11 +470,11 @@ function TaskManagement({ subject }: TaskManagementProps) {
                     />
                   </div>
 
-                  <div className="flex gap-2 pt-4">
+                  <div className="flex flex-col sm:flex-row gap-2 pt-4">
                     <Button type="submit" disabled={createTaskMutation.isPending} className="flex-1">
                       {createTaskMutation.isPending ? "Creating..." : "Create Task"}
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setIsTaskDialogOpen(false)}>
+                    <Button type="button" variant="outline" onClick={() => setIsTaskDialogOpen(false)} className="sm:w-auto">
                       Cancel
                     </Button>
                   </div>
@@ -472,9 +484,9 @@ function TaskManagement({ subject }: TaskManagementProps) {
             
             {/* Edit Task Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-              <DialogContent>
+              <DialogContent className="w-[95vw] sm:w-full max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Edit Task - {subject.name}</DialogTitle>
+                  <DialogTitle className="text-base sm:text-lg">Edit Task - {subject.name}</DialogTitle>
                 </DialogHeader>
                 {editingTask && (
                   <form onSubmit={(e) => {
@@ -571,11 +583,11 @@ function TaskManagement({ subject }: TaskManagementProps) {
                       />
                     </div>
 
-                    <div className="flex gap-2 pt-4">
+                    <div className="flex flex-col sm:flex-row gap-2 pt-4">
                       <Button type="submit" disabled={updateTaskMutation.isPending} className="flex-1">
                         {updateTaskMutation.isPending ? "Updating..." : "Update Task"}
                       </Button>
-                      <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                      <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="sm:w-auto">
                         Cancel
                       </Button>
                     </div>
@@ -592,9 +604,9 @@ function TaskManagement({ subject }: TaskManagementProps) {
               {filteredTasks.map((task) => (
                 <div
                   key={task.id}
-                  className={`p-4 rounded-lg border ${task.completed ? 'bg-muted/50' : 'bg-background'}`}
+                  className={`p-3 sm:p-4 rounded-lg border ${task.completed ? 'bg-muted/50' : 'bg-background'}`}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-2 sm:gap-3">
                     <input
                       type="checkbox"
                       checked={task.completed}
@@ -604,25 +616,27 @@ function TaskManagement({ subject }: TaskManagementProps) {
                       })}
                       className="mt-1 rounded"
                     />
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <h4 className={`font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
+                    <div className="flex-1 space-y-1 sm:space-y-2 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                        <h4 className={`font-medium text-sm sm:text-base truncate ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
                           {task.title}
                         </h4>
-                        <Badge className={`text-xs ${getTypeColor(task.type)}`}>
-                          {task.type === 'task' ? 'Task' : 'Homework'}
-                        </Badge>
-                        <div className={`w-2 h-2 rounded-full ${getPriorityColor(task.priority)}`} />
-                        <Badge variant="outline" className="text-xs">
-                          {task.priority}
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          {task.time_period === 'one_time' ? 'One Time' : task.time_period}
-                        </Badge>
+                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                          <Badge className={`text-xs ${getTypeColor(task.type)}`}>
+                            {task.type === 'task' ? 'Task' : 'HW'}
+                          </Badge>
+                          <div className={`w-2 h-2 rounded-full ${getPriorityColor(task.priority)}`} />
+                          <Badge variant="outline" className="text-xs hidden sm:inline-flex">
+                            {task.priority}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
+                            {task.time_period === 'one_time' ? 'One Time' : task.time_period}
+                          </Badge>
+                        </div>
                       </div>
                       
                       {task.description && (
-                        <p className="text-sm text-muted-foreground">{task.description}</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{task.description}</p>
                       )}
                       
                       <div className="flex items-center justify-between">
@@ -630,13 +644,14 @@ function TaskManagement({ subject }: TaskManagementProps) {
                         {task.due_date && (
                           <div className="text-xs text-muted-foreground flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            Due: {format(new Date(task.due_date), "MMM dd, yyyy")}
+                            <span className="hidden sm:inline">Due: </span>
+                            {format(new Date(task.due_date), "MMM dd")}
                           </div>
                         )}
                       </div>
                     </div>
                     
-                    <div className="flex gap-1">
+                    <div className="flex flex-col sm:flex-row gap-1">
                       <Button
                         size="sm"
                         variant="ghost"
@@ -644,7 +659,7 @@ function TaskManagement({ subject }: TaskManagementProps) {
                           setEditingTask(task);
                           setIsEditDialogOpen(true);
                         }}
-                        className="h-8 w-8 p-0"
+                        className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                       >
                         <Edit className="h-3 w-3" />
                       </Button>
@@ -652,7 +667,7 @@ function TaskManagement({ subject }: TaskManagementProps) {
                         size="sm"
                         variant="ghost"
                         onClick={() => deleteTaskMutation.mutate(task.id)}
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                        className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-red-500 hover:text-red-700"
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -760,56 +775,56 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-4 md:mt-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Subjects
+      <div className="flex items-center sm:gap-4 gap-2">
+        <Button variant="ghost" size="sm" onClick={onBack} className="px-2 sm:px-3">
+          <ArrowLeft className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Back to Subjects</span>
         </Button>
       </div>
 
       {/* Subject Overview Card */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 w-full">
               <div className="p-3 bg-primary/10 rounded-lg">
                 <BookOpen className="h-6 w-6 text-primary" />
               </div>
-              <div>
-                <CardTitle className="text-2xl">{subject.name}</CardTitle>
-                <div className="flex items-center gap-3 mt-2">
+              <div className="min-w-0">
+                <CardTitle className="text-xl md:text-2xl truncate">{subject.name}</CardTitle>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
                   <Badge variant="secondary">
                     {subject.credits} Credits
                   </Badge>
                   {subject.teacher && (
-                    <span className="text-muted-foreground">
+                    <span className="text-sm text-muted-foreground truncate">
                       Teacher: {subject.teacher}
                     </span>
                   )}
                   {subject.room && (
-                    <span className="text-muted-foreground">
+                    <span className="text-sm text-muted-foreground truncate">
                       Room: {subject.room}
                     </span>
                   )}
                 </div>
               </div>
             </div>
-            <Button variant="outline" size="sm">
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
+            <Button variant="outline" size="sm" className="w-full md:w-auto justify-center">
+              <Settings className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Settings</span>
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Current Grade */}
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className={`text-2xl font-bold ${subject.current_grade ? getGradeColorClass(subject.current_grade).split(' ')[0] : 'text-blue-700'}`}>
+            <div className="text-center p-3 md:p-4 bg-blue-50 rounded-lg">
+              <div className={`text-lg md:text-2xl font-bold ${subject.current_grade ? getGradeColorClass(subject.current_grade).split(' ')[0] : 'text-blue-700'}`}>
                 {subject.current_grade ? formatGrade(subject.current_grade) : 'N/A'}
               </div>
-              <div className="text-sm text-blue-600">Aktuelle Note</div>
+              <div className="text-xs md:text-sm text-blue-600">Aktuelle Note</div>
               {subject.current_grade && (
                 <div className="text-xs text-blue-500 mt-1">
                   {getGermanGradeName(subject.current_grade)}
@@ -818,11 +833,11 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
             </div>
             
             {/* Target Grade */}
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className={`text-2xl font-bold ${subject.target_grade ? getGradeColorClass(subject.target_grade).split(' ')[0] : 'text-green-700'}`}>
+            <div className="text-center p-3 md:p-4 bg-green-50 rounded-lg">
+              <div className={`text-lg md:text-2xl font-bold ${subject.target_grade ? getGradeColorClass(subject.target_grade).split(' ')[0] : 'text-green-700'}`}>
                 {subject.target_grade ? formatGrade(subject.target_grade) : 'N/A'}
               </div>
-              <div className="text-sm text-green-600">Zielnote</div>
+              <div className="text-xs md:text-sm text-green-600">Zielnote</div>
               {subject.target_grade && (
                 <div className="text-xs text-green-500 mt-1">
                   {getGermanGradeName(subject.target_grade)}
@@ -831,13 +846,13 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
             </div>
             
             {/* Progress */}
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-700">
+            <div className="text-center p-3 md:p-4 bg-purple-50 rounded-lg">
+              <div className="text-lg md:text-2xl font-bold text-purple-700">
                 {subject.current_grade && subject.target_grade 
                   ? Math.round(Math.max(0, Math.min(100, ((6 - subject.current_grade) / (6 - subject.target_grade)) * 100)))
                   : 0}%
               </div>
-              <div className="text-sm text-purple-600">Fortschritt zum Ziel</div>
+              <div className="text-xs md:text-sm text-purple-600">Fortschritt zum Ziel</div>
               {subject.current_grade && subject.target_grade && (
                 <div className="text-xs text-purple-500 mt-1">
                   {subject.current_grade <= subject.target_grade ? 'Ziel erreicht!' : 'Verbesserung nötig'}
@@ -853,32 +868,32 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
       {/* Tabs for different views */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 md:grid-cols-5">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4" />
-            <span className="hidden sm:inline">Overview</span>
-          </TabsTrigger>
-          <TabsTrigger value="curriculum" className="flex items-center gap-2">
-            <Target className="h-4 w-4" />
-            <span className="hidden sm:inline">Curriculum</span>
-          </TabsTrigger>
-          <TabsTrigger value="grades" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            <span className="hidden sm:inline">Noten</span>
-          </TabsTrigger>
-          <TabsTrigger value="tasks" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Task Management</span>
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center gap-2">
+          <TabsTrigger value="overview" className="flex items-center gap-1 md:gap-2 px-2 md:px-3">
             <BarChart3 className="h-4 w-4" />
-            <span className="hidden sm:inline">Analytics</span>
+            <span className="hidden sm:inline text-xs md:text-sm">Overview</span>
+          </TabsTrigger>
+          <TabsTrigger value="curriculum" className="flex items-center gap-1 md:gap-2 px-2 md:px-3">
+            <Target className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs md:text-sm">Curriculum</span>
+          </TabsTrigger>
+          <TabsTrigger value="grades" className="flex items-center gap-1 md:gap-2 px-2 md:px-3">
+            <TrendingUp className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs md:text-sm">Noten</span>
+          </TabsTrigger>
+          <TabsTrigger value="tasks" className="flex items-center gap-1 md:gap-2 px-2 md:px-3">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs md:text-sm">Tasks</span>
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="flex items-center gap-1 md:gap-2 px-2 md:px-3">
+            <BarChart3 className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs md:text-sm">Analytics</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             {/* Quick Stats */}
-            <Card>
+            <Card className="mt-4 md:mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BarChart3 className="h-5 w-5" />
@@ -906,7 +921,7 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
             </Card>
 
             {/* Recent Activity */}
-            <Card>
+            <Card className="mt-4 md:mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
@@ -969,7 +984,7 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Button 
                   variant="outline" 
-                  className="h-20 flex-col gap-2"
+                  className="h-16 md:h-20 flex-col gap-2"
                   onClick={() => setActiveTab('tasks')}
                 >
                   <CheckSquare className="h-6 w-6" />
@@ -977,7 +992,7 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
                 </Button>
                 <Button 
                   variant="outline" 
-                  className="h-20 flex-col gap-2"
+                  className="h-16 md:h-20 flex-col gap-2"
                   onClick={() => setActiveTab('grades')}
                 >
                   <BarChart3 className="h-6 w-6" />
@@ -985,7 +1000,7 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
                 </Button>
                 <Button 
                   variant="outline" 
-                  className="h-20 flex-col gap-2"
+                  className="h-16 md:h-20 flex-col gap-2"
                   onClick={() => setActiveTab('curriculum')}
                 >
                   <BookOpen className="h-6 w-6" />
@@ -1008,7 +1023,7 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
         </TabsContent>
 
         <TabsContent value="tasks" className="space-y-6">
-          <TaskManagement subject={subject} />
+          <TaskManagement subject={subject} onBack={onBack} />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">
@@ -1129,7 +1144,7 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
                       'Ausreichend (3.6-4.0)': grades.filter(g => g.grade >= 3.6 && g.grade <= 4.0).length,
                       'Mangelhaft (4.1-5.0)': grades.filter(g => g.grade >= 4.1 && g.grade <= 5.0).length,
                       'Ungenügend (5.1-6.0)': grades.filter(g => g.grade >= 5.1 && g.grade <= 6.0).length
-                    };
+                    } as Record<string, number>;
                     
                     return Object.entries(gradeRanges).map(([range, count]) => (
                       <div key={range} className="flex items-center justify-between">
@@ -1171,14 +1186,14 @@ export function SubjectDetail({ subject, onBack, t }: SubjectDetailProps) {
                     .sort((a, b) => new Date(b.date_received).getTime() - new Date(a.date_received).getTime())
                     .slice(0, 5)
                     .map((grade, index) => (
-                      <div key={grade.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex-1">
+                      <div key={grade.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 border rounded-lg">
+                        <div className="flex-1 min-w-0">
                           <h4 className="font-medium">{grade.title}</h4>
                           <p className="text-sm text-muted-foreground">
                             {new Date(grade.date_received).toLocaleDateString('de-DE')} • {grade.type}
                           </p>
                         </div>
-                        <div className={`text-lg font-bold px-3 py-1 rounded ${getGradeColorClass(grade.grade)}`}>
+                        <div className={`text-lg font-bold px-3 py-1 rounded ${getGradeColorClass(grade.grade)} sm:mt-0 mt-1`}>
                           {formatGrade(grade.grade)}
                         </div>
                       </div>

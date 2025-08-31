@@ -7,6 +7,9 @@ import { SubjectProgressItem } from "@/components/dashboard/subject-progress-ite
 import { FeatureSuggestions } from "@/components/dashboard/feature-suggestions";
 import { BottomNavigation } from "@/components/dashboard/bottom-navigation";
 import { DurchschnittDashboard } from "@/components/grades/durchschnitt-dashboard";
+import { TasksModal } from "@/components/dashboard/tasks-modal";
+import { HomeworkModal } from "@/components/dashboard/homework-modal";
+import { SubjectsModal } from "@/components/dashboard/subjects-modal";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTranslations } from "@/hooks/use-translations";
@@ -21,6 +24,12 @@ import { MeldungenModal } from "@/components/dashboard/meldungen-modal";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LogIn } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useMetricsTracking } from "@/hooks/use-metrics-tracking";
+import { useGradeTracking } from "@/hooks/use-grade-tracking";
+import { useTaskTracking } from "@/hooks/use-task-tracking";
+import TimeSelector, { TimePeriod } from "@/components/TimeSelector";
 
 
 const Index = () => {
@@ -33,6 +42,197 @@ const Index = () => {
   const { language, setLanguage, t } = useTranslations();
   const navigate = useNavigate();
   const [isMeldungenModalOpen, setIsMeldungenModalOpen] = useState(false);
+  const [isTasksModalOpen, setIsTasksModalOpen] = useState(false);
+  const [isHomeworkModalOpen, setIsHomeworkModalOpen] = useState(false);
+  const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
+
+  // Initialize tracking hooks
+  const { getMetricsChanges } = useMetricsTracking();
+  const { getGradeChange } = useGradeTracking();
+  const { getTaskChange } = useTaskTracking();
+
+  // State for tracking changes
+  const [curriculumChange, setCurriculumChange] = useState<string | undefined>(undefined);
+  const [curriculumChangeType, setCurriculumChangeType] = useState<'positive' | 'negative' | 'neutral'>('neutral');
+  const [tasksChange, setTasksChange] = useState<string | undefined>(undefined);
+  const [tasksChangeType, setTasksChangeType] = useState<'positive' | 'negative' | 'neutral'>('neutral');
+  const [homeworkChange, setHomeworkChange] = useState<string | undefined>(undefined);
+  const [homeworkChangeType, setHomeworkChangeType] = useState<'positive' | 'negative' | 'neutral'>('neutral');
+  const [subjectsChange, setSubjectsChange] = useState<string | undefined>(undefined);
+  const [subjectsChangeType, setSubjectsChangeType] = useState<'positive' | 'negative' | 'neutral'>('neutral');
+  const [meldungenChange, setMeldungenChange] = useState<string | undefined>(undefined);
+  const [meldungenChangeType, setMeldungenChangeType] = useState<'positive' | 'negative' | 'neutral'>('neutral');
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('week');
+
+  // Fetch change data
+  useEffect(() => {
+    const fetchChanges = async () => {
+      try {
+        // Get task changes
+        const taskChanges = await getTaskChange(
+          selectedTimePeriod === 'day' ? 1 : 
+          selectedTimePeriod === 'week' ? 7 : 30
+        );
+        if (taskChanges) {
+          const tasksChangeValue = taskChanges.tasks_change;
+          const homeworkChangeValue = taskChanges.homework_change;
+          
+          // Format task changes
+          if (tasksChangeValue !== 0) {
+            setTasksChange(tasksChangeValue > 0 ? `+${tasksChangeValue}` : `${tasksChangeValue}`);
+            setTasksChangeType(tasksChangeValue > 0 ? 'negative' : 'positive'); // More tasks = negative, fewer = positive
+          } else {
+            setTasksChange('+0');
+            setTasksChangeType('neutral');
+          }
+          
+          // Format homework changes
+          if (homeworkChangeValue !== 0) {
+            setHomeworkChange(homeworkChangeValue > 0 ? `+${homeworkChangeValue}` : `${homeworkChangeValue}`);
+            setHomeworkChangeType(homeworkChangeValue > 0 ? 'negative' : 'positive'); // More homework = negative, fewer = positive
+          } else {
+            setHomeworkChange('+0');
+            setHomeworkChangeType('neutral');
+          }
+        } else {
+          // Set default values if no task changes data
+          setTasksChange('+0');
+          setTasksChangeType('neutral');
+          setHomeworkChange('+0');
+          setHomeworkChangeType('neutral');
+        }
+        
+        // Get metrics changes for all metrics
+        const metricsChanges = await getMetricsChanges(selectedTimePeriod);
+        if (metricsChanges) {
+          // Curriculum progress
+          if (metricsChanges?.curriculum_progress !== null && metricsChanges?.curriculum_progress !== undefined) {
+            const change = metricsChanges.curriculum_progress.change_percentage;
+            if (Math.abs(change) >= 0.1) {
+              setCurriculumChange(change > 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`);
+              setCurriculumChangeType(change > 0 ? 'positive' : 'negative');
+            } else {
+              setCurriculumChange('+0.0%');
+              setCurriculumChangeType('neutral');
+            }
+          } else {
+            setCurriculumChange('+0.0%');
+            setCurriculumChangeType('neutral');
+          }
+          
+          // Active subjects
+          if (metricsChanges.active_subjects) {
+            const subjectsChangeValue = metricsChanges.active_subjects.change_count;
+            if (Math.abs(subjectsChangeValue) >= 1) {
+              setSubjectsChange(`${subjectsChangeValue > 0 ? '+' : ''}${subjectsChangeValue}`);
+              setSubjectsChangeType(metricsChanges.active_subjects.change_type === 'positive' ? 'positive' : 
+                                   metricsChanges.active_subjects.change_type === 'negative' ? 'negative' : 'neutral');
+            } else {
+              setSubjectsChange('+0');
+              setSubjectsChangeType('neutral');
+            }
+          } else {
+            setSubjectsChange('+0');
+            setSubjectsChangeType('neutral');
+          }
+          
+          // Meldungen
+          if (metricsChanges.meldungen) {
+            const meldungenChangeValue = metricsChanges.meldungen.change_count;
+            if (Math.abs(meldungenChangeValue) >= 1) {
+              setMeldungenChange(`${meldungenChangeValue > 0 ? '+' : ''}${meldungenChangeValue}`);
+              setMeldungenChangeType(metricsChanges.meldungen.change_type === 'positive' ? 'positive' : 
+                                    metricsChanges.meldungen.change_type === 'negative' ? 'negative' : 'neutral');
+            } else {
+              setMeldungenChange('+0');
+              setMeldungenChangeType('neutral');
+            }
+          } else {
+            setMeldungenChange('+0');
+            setMeldungenChangeType('neutral');
+          }
+        } else {
+          setCurriculumChange('+0.0%');
+          setCurriculumChangeType('neutral');
+          setSubjectsChange('+0');
+          setSubjectsChangeType('neutral');
+          setMeldungenChange('+0');
+          setMeldungenChangeType('neutral');
+        }
+      } catch (error) {
+        console.error('Error fetching changes:', error);
+        // Set default values on error
+        setCurriculumChange('+0.0%');
+        setCurriculumChangeType('neutral');
+        setTasksChange('+0');
+        setTasksChangeType('neutral');
+        setHomeworkChange('+0');
+        setHomeworkChangeType('neutral');
+        setSubjectsChange('+0');
+        setSubjectsChangeType('neutral');
+        setMeldungenChange('+0');
+        setMeldungenChangeType('neutral');
+      }
+    };
+    
+    if (user?.id) {
+      fetchChanges();
+    }
+  }, [user?.id, selectedTimePeriod]);
+
+  // Fetch topics for all subjects
+  const { data: topics = [] } = useQuery({
+    queryKey: ['syllabus-topics', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('syllabus_topics')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('order_index');
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Fetch subtopics for all topics
+  const { data: subtopics = [] } = useQuery({
+    queryKey: ['subtopics', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('subtopics')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('order_index');
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Calculate topic and subtopic statistics for each subject
+  const calculateSubjectStats = (subjectId: string) => {
+    const subjectTopics = topics.filter(topic => topic.subject_id === subjectId);
+    const subjectSubtopics = subtopics.filter(subtopic => 
+      subjectTopics.some(topic => topic.id === subtopic.topic_id)
+    );
+    
+    const completedSubtopics = subjectSubtopics.filter(subtopic => subtopic.completed).length;
+    const progress = subjectSubtopics.length > 0 ? (completedSubtopics / subjectSubtopics.length) * 100 : 0;
+    
+    return {
+      totalTopics: subjectTopics.length,
+      completedTopics: subjectTopics.filter(topic => {
+        const topicSubtopics = subtopics.filter(s => s.topic_id === topic.id);
+        return topicSubtopics.length > 0 && topicSubtopics.every(s => s.completed);
+      }).length,
+      totalSubtopics: subjectSubtopics.length,
+      completedSubtopics,
+      progress: Math.round(progress)
+    };
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -80,8 +280,12 @@ const Index = () => {
   const averageGrade = subjectsWithGrades.length > 0 
     ? subjectsWithGrades.reduce((sum, subject) => sum + (subject.current_grade || 0), 0) / subjectsWithGrades.length
     : 0;
-  const progress = subjects.length > 0 
-    ? (subjects.filter(s => s.current_grade && s.current_grade <= 3.0).length / subjects.length) * 100
+  // Calculate overall curriculum progress based on subtopic completion
+  const overallCurriculumProgress = subjects.length > 0 
+    ? subjects.reduce((totalProgress, subject) => {
+        const stats = calculateSubjectStats(subject.id);
+        return totalProgress + stats.progress;
+      }, 0) / subjects.length
     : 0;
 
   // Calculate total open tasks, homework and oral contributions from real data
@@ -119,46 +323,58 @@ const Index = () => {
         {/* Welcome Banner */}
         <WelcomeBanner studentName={studentName} t={t} />
         
+        {/* Time Period Selector */}
+        {(subjects.length > 0 || tasks.length > 0) && (
+          <TimeSelector
+            selectedPeriod={selectedTimePeriod}
+            onPeriodChange={setSelectedTimePeriod}
+          />
+        )}
+        
         {/* Metrics Grid - only show if there's data */}
         {(subjects.length > 0 || tasks.length > 0) && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <MetricCard
               title={t.curriculumProgress}
-              value={subjects.length > 0 ? `${Math.round(progress)}%` : "0%"}
-              change={subjects.length > 0 ? "+5%" : "0%"}
-              changeType={subjects.length > 0 ? "positive" : "neutral"}
+              value={subjects.length > 0 ? `${Math.round(overallCurriculumProgress)}%` : "0%"}
+              change={curriculumChange}
+              changeType={curriculumChangeType}
               icon={<span className="h-4 w-4">🎯</span>}
               iconColor="text-primary"
+              onClick={() => setIsSubjectsModalOpen(true)}
             />
             <MetricCard
               title="Open Tasks"
               value={totalOpenTasks.toString()}
-              change="0"
-              changeType="neutral"
+              change={tasksChange}
+              changeType={tasksChangeType}
               icon={<span className="h-4 w-4">📋</span>}
               iconColor="text-warning"
+              onClick={() => setIsTasksModalOpen(true)}
             />
             <MetricCard
               title="Open Homework"
               value={totalOpenHomework.toString()}
-              change="0"
-              changeType="neutral"
+              change={homeworkChange}
+              changeType={homeworkChangeType}
               icon={<span className="h-4 w-4">📝</span>}
               iconColor="text-blue-600"
+              onClick={() => setIsHomeworkModalOpen(true)}
             />
             <MetricCard
               title={t.activeSubjects}
               value={totalSubjects.toString()}
-              change="0"
-              changeType="neutral"
+              change={subjectsChange}
+              changeType={subjectsChangeType}
               icon={<span className="h-4 w-4">📚</span>}
               iconColor="text-primary"
+              onClick={() => navigate('/subjects')}
             />
             <MetricCard
               title="Meldungen heute"
               value={totalMeldungenToday.toString()}
-              change="0"
-              changeType="neutral"
+              change={meldungenChange}
+              changeType={meldungenChangeType}
               icon={<span className="h-4 w-4">🙋</span>}
               iconColor="text-green-600"
               onClick={() => setIsMeldungenModalOpen(true)}
@@ -218,6 +434,49 @@ const Index = () => {
       <MeldungenModal 
         isOpen={isMeldungenModalOpen}
         onClose={() => setIsMeldungenModalOpen(false)}
+      />
+      
+      {/* Tasks Modal */}
+      <TasksModal 
+        isOpen={isTasksModalOpen}
+        onClose={() => setIsTasksModalOpen(false)}
+        tasks={tasks.filter(task => !task.completed && task.type === 'task').map(task => ({
+          ...task,
+          subject: subjects.find(s => s.id === task.subject_id)
+        }))}
+        title="Open Tasks"
+      />
+      
+      {/* Homework Modal */}
+      <HomeworkModal 
+        isOpen={isHomeworkModalOpen}
+        onClose={() => setIsHomeworkModalOpen(false)}
+        homework={tasks.filter(task => !task.completed && task.type === 'homework').map(task => ({
+          ...task,
+          subject: subjects.find(s => s.id === task.subject_id)
+        }))}
+        title="Open Homework"
+      />
+      
+      {/* Subjects Modal */}
+      <SubjectsModal 
+        isOpen={isSubjectsModalOpen}
+        onClose={() => setIsSubjectsModalOpen(false)}
+        subjects={subjects.map(subject => {
+          const stats = calculateSubjectStats(subject.id);
+          return {
+            ...subject,
+            course_type: subject.course_type as 'LK' | 'GK',
+            openTasks: getOpenTasksCount(tasks, subject.id),
+            openHomework: getOpenHomeworkCount(tasks, subject.id),
+            progress: stats.progress,
+            totalTopics: stats.totalTopics,
+            completedTopics: stats.completedTopics,
+            totalSubtopics: stats.totalSubtopics,
+            completedSubtopics: stats.completedSubtopics
+          };
+        })}
+        title="All Subjects"
       />
     </div>
   );

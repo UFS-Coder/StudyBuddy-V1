@@ -27,23 +27,29 @@ export function BottomNavigation({ t }: BottomNavigationProps) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-around py-2">
+    // Visible on all viewports; mobile shows icons-only, desktop shows labels too (as before)
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t border-border">
+      <div className="container mx-auto px-2 md:px-4">
+        <div className="flex items-center justify-around py-1.5 md:py-2">
           {navItems.map((item, index) => (
             <Button
               key={index}
+              aria-label={item.label}
               variant="ghost"
               size="sm"
-              className={`flex flex-col items-center gap-1 px-2 py-3 h-auto text-xs ${
+              className={`${
                 location.pathname === item.path
                   ? "text-primary bg-primary/10" 
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+              } 
+              // Mobile: icon-only circular buttons
+              h-10 w-10 rounded-full p-0 justify-center
+              // Desktop: stacked icon + label like earlier
+              md:h-auto md:w-auto md:rounded-none md:px-2 md:py-3 md:flex md:flex-col md:items-center md:gap-1 md:text-xs`}
               onClick={item.onClick}
             >
-              <item.icon className="h-4 w-4" />
-              <span>{item.label}</span>
+              <item.icon className="h-5 w-5 md:h-4 md:w-4" />
+              <span className="hidden md:inline">{item.label}</span>
             </Button>
           ))}
         </div>

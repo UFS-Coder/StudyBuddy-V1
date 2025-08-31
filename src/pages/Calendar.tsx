@@ -14,6 +14,8 @@ import { useProfile } from "@/hooks/use-profile";
 import { useSubjects } from "@/hooks/use-subjects";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, Task } from "@/hooks/use-tasks";
 import { Calendar as CalendarIcon, Plus, Clock, BookOpen, AlertCircle, CheckCircle, List, Grid3X3, ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 
 const Calendar = () => {
   const { language, setLanguage, t } = useTranslations();
@@ -41,6 +43,14 @@ const Calendar = () => {
 
   const studentName = profile?.display_name || user?.email?.split("@")[0] || "Student";
 
+  // Helper function to format date consistently in local timezone
+  const formatDateLocal = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Convert tasks to calendar events format
   const calendarEvents = tasks.map(task => {
     const subject = subjects?.find(s => s.id === task.subject_id);
@@ -50,7 +60,7 @@ const Calendar = () => {
       description: task.description || "",
       subject_id: task.subject_id,
       subject_name: subject?.name || "Allgemein",
-      date: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : "",
+      date: task.due_date ? formatDateLocal(new Date(task.due_date)) : "",
       time: task.due_date ? new Date(task.due_date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : "",
       type: task.type,
       status: task.completed ? "completed" : "upcoming",
@@ -246,7 +256,7 @@ const Calendar = () => {
   };
 
   const getEventsForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatDateLocal(date);
     return calendarEvents.filter(event => event.date === dateStr);
   };
 
@@ -276,7 +286,7 @@ const Calendar = () => {
           title: "",
           description: "",
           subject_id: "",
-          due_date: cellDate.toISOString().split('T')[0],
+          due_date: formatDateLocal(cellDate),
           priority: "medium",
           type: "task",
           time_period: "week"
@@ -294,7 +304,7 @@ const Calendar = () => {
       title: "",
       description: "",
       subject_id: "",
-      due_date: cellDate.toISOString().split('T')[0],
+      due_date: formatDateLocal(cellDate),
       priority: "medium",
       type: "task",
       time_period: "week"
@@ -312,11 +322,12 @@ const Calendar = () => {
       'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
     ];
     const dayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const shortDayNames = ['M', 'D', 'M', 'D', 'F', 'S', 'S']; // Shorter day names for mobile
 
     // Add empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
       days.push(
-        <div key={`empty-${i}`} className="h-24 border border-border/50"></div>
+        <div key={`empty-${i}`} className="h-16 md:h-24 border border-border/50"></div>
       );
     }
 
@@ -331,18 +342,18 @@ const Calendar = () => {
       days.push(
         <div
           key={day}
-          className={`h-24 border border-border/50 p-1 overflow-hidden ${
+          className={`h-16 md:h-24 border border-border/50 p-1 overflow-hidden ${
             isToday ? 'bg-primary/10 border-primary' : isPast ? 'bg-muted/30' : 'hover:bg-accent/50'
           } transition-colors ${isFutureOrToday ? 'cursor-pointer' : ''}`}
           onClick={() => handleDayClick(cellDate, eventsForDay)}
         >
-          <div className={`text-sm font-medium mb-1 ${
+          <div className={`text-xs md:text-sm font-medium mb-1 ${
             isToday ? 'text-primary font-bold' : isPast ? 'text-muted-foreground' : ''
           }`}>
             {day}
           </div>
           <div className="space-y-1">
-            {eventsForDay.slice(0, 2).map((event, index) => (
+            {eventsForDay.slice(0, 1).map((event, index) => (
               <div
                 key={event.id}
                 className={`text-xs p-1 rounded group relative ${
@@ -356,7 +367,7 @@ const Calendar = () => {
                   handleEditEvent(event);
                 }}
               >
-                <div className="truncate pr-6">{event.title}</div>
+                <div className="truncate pr-6 text-[10px] md:text-xs">{event.title}</div>
                 <div className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 flex gap-1">
                   <button
                     onClick={(e) => {
@@ -379,20 +390,20 @@ const Calendar = () => {
                 </div>
               </div>
             ))}
-            {eventsForDay.length > 2 && (
-              <div className="text-xs text-muted-foreground font-medium">
-                +{eventsForDay.length - 2} mehr
+            {eventsForDay.length > 1 && (
+              <div className="text-[10px] md:text-xs text-muted-foreground font-medium">
+                +{eventsForDay.length - 1} mehr
               </div>
             )}
             {/* Add + icon for adding new events when there are existing events and it's not a past date */}
             {eventsForDay.length > 0 && isFutureOrToday && (
               <button
                 onClick={(e) => handleAddEventToDay(cellDate, e)}
-                className="w-full text-xs text-muted-foreground hover:text-primary flex items-center justify-center gap-1 py-1 hover:bg-accent/50 rounded transition-colors"
+                className="w-full text-[10px] md:text-xs text-muted-foreground hover:text-primary flex items-center justify-center gap-1 py-1 hover:bg-accent/50 rounded transition-colors"
                 title="Neuen Termin hinzufügen"
               >
                 <Plus className="w-3 h-3" />
-                <span>Hinzufügen</span>
+                <span className="hidden md:inline">Hinzufügen</span>
               </button>
             )}
           </div>
@@ -404,7 +415,7 @@ const Calendar = () => {
       <div className="space-y-4">
         {/* Calendar Header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">
+          <h2 className="text-lg md:text-xl font-semibold">
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </h2>
           <div className="flex items-center gap-2">
@@ -418,6 +429,7 @@ const Calendar = () => {
             <Button
               variant="outline"
               size="sm"
+              className="hidden sm:flex"
               onClick={() => setCurrentDate(new Date())}
             >
               Heute
@@ -434,9 +446,10 @@ const Calendar = () => {
 
         {/* Day Names Header */}
         <div className="grid grid-cols-7 gap-0">
-          {dayNames.map(day => (
-            <div key={day} className="h-8 border border-border/50 bg-muted/50 flex items-center justify-center text-sm font-medium">
-              {day}
+          {dayNames.map((day, index) => (
+            <div key={day} className="h-8 border border-border/50 bg-muted/50 flex items-center justify-center text-xs md:text-sm font-medium">
+              <span className="hidden md:inline">{day}</span>
+              <span className="md:hidden">{shortDayNames[index]}</span>
             </div>
           ))}
         </div>
@@ -457,47 +470,47 @@ const Calendar = () => {
         studentName={studentName}
         t={t} 
       />
-      <div className="container mx-auto px-4 py-6 pb-20">
+      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 pb-20">
         {/* Header */}
         <div className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground p-6 rounded-lg mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
             <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
                 <CalendarIcon className="w-6 h-6" />
                 Kalender
               </h1>
-              <p className="text-primary-foreground/80 mt-1">
+              <p className="text-sm sm:text-base text-primary-foreground/80 mt-1">
                 Verwalte deine Termine und Deadlines, {studentName}
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
               {/* View Toggle */}
-              <div className="flex items-center bg-primary-foreground/20 rounded-lg p-1">
+              <div className="flex items-center bg-primary-foreground/20 rounded-lg p-0.5 sm:p-1">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setViewMode("list")}
-                  className={`gap-2 hover:text-primary ${
+                  className={`gap-1.5 sm:gap-2 hover:text-primary ${
                     viewMode === "list" 
                       ? "bg-orange-500 text-white hover:bg-orange-600 hover:text-white" 
                       : "text-primary-foreground"
                   }`}
                 >
                   <List className="w-4 h-4" />
-                  Liste
+                  <span className="hidden sm:inline">Liste</span>
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setViewMode("calendar")}
-                  className={`gap-2 hover:text-primary ${
+                  className={`gap-1.5 sm:gap-2 hover:text-primary ${
                     viewMode === "calendar" 
                       ? "bg-orange-500 text-white hover:bg-orange-600 hover:text-white" 
                       : "text-primary-foreground"
                   }`}
                 >
                   <Grid3X3 className="w-4 h-4" />
-                  Kalender
+                  <span className="hidden sm:inline">Kalender</span>
                 </Button>
               </div>
               {/* Edit Dialog */}
@@ -612,9 +625,9 @@ const Calendar = () => {
               
               <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="secondary" className="gap-2">
+                  <Button variant="secondary" className="gap-1.5 sm:gap-2">
                     <Plus className="w-4 h-4" />
-                    Neuer Termin
+                    <span className="hidden sm:inline">Neuer Termin</span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent>

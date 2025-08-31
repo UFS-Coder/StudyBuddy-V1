@@ -37,7 +37,8 @@ export const FloatingWidget: React.FC<FloatingWidgetProps> = ({
               onClick={handleToggle}
               size="lg"
               className={cn(
-                "fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg",
+                // On mobile, raise above bottom nav and nudge inwards; on larger screens keep previous spacing
+                "fixed right-4 bottom-24 sm:right-6 sm:bottom-6 z-50 h-14 w-14 rounded-full shadow-lg",
                 "bg-primary hover:bg-primary/90 text-primary-foreground",
                 "transition-all duration-200 hover:scale-110",
                 "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
