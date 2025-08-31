@@ -37,14 +37,9 @@ ON public.themes
 FOR DELETE 
 USING (auth.uid() = user_id);
 
--- Add theme_id column to syllabus_topics table (optional)
-ALTER TABLE public.syllabus_topics 
-ADD COLUMN theme_id UUID REFERENCES public.themes(id) ON DELETE SET NULL;
-
 -- Create indexes for better performance
 CREATE INDEX idx_themes_subject_id ON public.themes(subject_id);
 CREATE INDEX idx_themes_user_id ON public.themes(user_id);
-CREATE INDEX idx_syllabus_topics_theme_id ON public.syllabus_topics(theme_id);
 
 -- Create trigger for updated_at on themes
 CREATE TRIGGER update_themes_updated_at

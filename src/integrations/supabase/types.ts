@@ -148,6 +148,7 @@ export type Database = {
           created_at: string
           id: string
           subject_id: string | null
+          subtopic_id: string | null
           tags: string[] | null
           time_period: string | null
           title: string
@@ -160,6 +161,7 @@ export type Database = {
           created_at?: string
           id?: string
           subject_id?: string | null
+          subtopic_id?: string | null
           tags?: string[] | null
           time_period?: string | null
           title: string
@@ -172,6 +174,7 @@ export type Database = {
           created_at?: string
           id?: string
           subject_id?: string | null
+          subtopic_id?: string | null
           tags?: string[] | null
           time_period?: string | null
           title?: string

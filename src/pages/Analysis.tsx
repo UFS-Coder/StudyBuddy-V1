@@ -10,6 +10,8 @@ import { useTranslations } from "@/hooks/use-translations";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
 import { useSubjects } from "@/hooks/use-subjects";
+import { useGrades } from "@/hooks/use-grades";
+import { calculateGermanGymnasiumAnalytics, formatGrade, getGermanGradeName, getGradeColorClass } from "@/lib/grade-calculations";
 import { 
   BarChart3, 
   TrendingUp, 
@@ -26,59 +28,97 @@ const Analysis = () => {
   const { t, language, setLanguage } = useTranslations();
   const { user } = useAuth();
   const { data: profile } = useProfile();
-  const { data: subjects } = useSubjects();
+  const { data: subjects = [] } = useSubjects();
+  const { data: grades = [] } = useGrades();
   const [selectedPeriod, setSelectedPeriod] = useState("month");
 
   const studentName = profile?.display_name || user?.email?.split('@')[0] || 'Student';
 
-  // Mock analytics data
-  const mockAnalytics = {
-    overallGPA: 2.3,
-    trend: "up",
-    completedCredits: 45,
-    totalCredits: 180,
-    completedAssignments: 23,
-    totalAssignments: 28,
-    upcomingDeadlines: 5,
-    monthlyProgress: [
-      { month: "Sep", gpa: 2.1 },
-      { month: "Okt", gpa: 2.2 },
-      { month: "Nov", gpa: 2.4 },
-      { month: "Dez", gpa: 2.3 },
-    ],
-    subjectPerformance: [
-      {
-        id: 1,
-        name: "Mathematik",
-        currentGrade: 2.0,
-        targetGrade: 1.7,
-        progress: 75,
-        status: "on_track",
-        assignments: 8,
-        completedAssignments: 6
-      },
-      {
-        id: 2,
-        name: "Physik",
-        currentGrade: 2.7,
-        targetGrade: 2.3,
-        progress: 60,
-        status: "behind",
-        assignments: 6,
-        completedAssignments: 3
-      },
-      {
-        id: 3,
-        name: "Informatik",
-        currentGrade: 1.8,
-        targetGrade: 1.5,
-        progress: 90,
-        status: "ahead",
-        assignments: 10,
-        completedAssignments: 9
+  // Filter grades based on selected period
+  const getFilteredGrades = () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    
+    // Get the most recent year with data if current year has no grades
+    const gradeYears = grades.map(g => new Date(g.date_received || g.created_at).getFullYear());
+    const latestDataYear = Math.max(...gradeYears);
+    const targetYear = gradeYears.includes(currentYear) ? currentYear : latestDataYear;
+    
+    return grades.filter(grade => {
+      const gradeDate = new Date(grade.date_received || grade.created_at);
+      const gradeYear = gradeDate.getFullYear();
+      const gradeMonth = gradeDate.getMonth();
+      
+      switch (selectedPeriod) {
+        case 'month':
+          // Show current month of target year, or latest month if no current month data
+          if (gradeYear === targetYear) {
+            const monthsWithData = grades
+              .filter(g => new Date(g.date_received || g.created_at).getFullYear() === targetYear)
+              .map(g => new Date(g.date_received || g.created_at).getMonth());
+            const targetMonth = monthsWithData.includes(currentMonth) ? currentMonth : Math.max(...monthsWithData);
+            return gradeMonth === targetMonth;
+          }
+          return false;
+        case 'semester':
+          // German school year: 1st semester (Aug-Jan), 2nd semester (Feb-Jul)
+          const currentSemester = currentMonth >= 7 || currentMonth <= 0 ? 1 : 2;
+          const gradeSemester = gradeMonth >= 7 || gradeMonth <= 0 ? 1 : 2;
+          return gradeYear === targetYear && gradeSemester === currentSemester;
+        case 'year':
+          return gradeYear === targetYear;
+        default:
+          return true;
       }
-    ]
+    });
   };
+
+  const filteredGrades = getFilteredGrades();
+
+  // Calculate real analytics using German Gymnasium system with filtered grades
+  const subjectsWithGrades = subjects.map(subject => ({
+    ...subject,
+    grades: filteredGrades.filter(grade => grade.subject_id === subject.id),
+    course_type: (subject.course_type === 'LK' || subject.course_type === 'GK') ? subject.course_type as 'LK' | 'GK' : 'GK' as 'GK'
+  }));
+
+  const analytics = calculateGermanGymnasiumAnalytics(subjectsWithGrades);
+
+  // Calculate additional metrics using filtered grades
+  const totalGrades = filteredGrades.length;
+  const recentGrades = filteredGrades.filter(g => {
+    const gradeDate = new Date(g.date_received || g.created_at);
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    return gradeDate >= oneMonthAgo;
+  }).length;
+
+  const subjectPerformance = analytics.subjectAnalytics.map(subject => {
+    const subjectGrades = filteredGrades.filter(g => g.subject_id === subject.subjectId);
+    const targetGrade = subjects.find(s => s.id === subject.subjectId)?.target_grade;
+    
+    let status = "on_track";
+    if (subject.overallAverage && targetGrade) {
+      if (subject.overallAverage <= targetGrade - 0.3) status = "ahead";
+      else if (subject.overallAverage >= targetGrade + 0.3) status = "behind";
+    }
+    
+    const progress = subject.overallAverage && targetGrade 
+      ? Math.max(0, Math.min(100, ((6 - subject.overallAverage) / (6 - targetGrade)) * 100))
+      : 0;
+    
+    return {
+      id: subject.subjectId,
+      name: subject.subjectName,
+      currentGrade: subject.overallAverage,
+      targetGrade,
+      progress: Math.round(progress),
+      status,
+      assignments: subjectGrades.length,
+      completedAssignments: subjectGrades.length
+    };
+  });
 
   const getTrendIcon = (trend: string) => {
     if (trend === "up") {
@@ -170,10 +210,10 @@ const Analysis = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Gesamt-GPA</p>
                   <div className="flex items-center gap-2">
-                    <p className={`text-2xl font-bold ${getGradeColor(mockAnalytics.overallGPA)}`}>
-                      {mockAnalytics.overallGPA.toFixed(1)}
+                    <p className={`text-2xl font-bold ${analytics.overallAverage > 0 ? getGradeColor(analytics.overallAverage) : 'text-gray-500'}`}>
+                      {analytics.overallAverage > 0 ? formatGrade(analytics.overallAverage) : 'N/A'}
                     </p>
-                    {getTrendIcon(mockAnalytics.trend)}
+                    {analytics.overallAverage > 0 && analytics.overallAverage <= 2.5 && getTrendIcon('up')}
                   </div>
                 </div>
               </div>
@@ -188,7 +228,7 @@ const Analysis = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Credits</p>
                   <p className="text-2xl font-bold">
-                    {mockAnalytics.completedCredits}/{mockAnalytics.totalCredits}
+                    {subjects.reduce((sum, s) => sum + (s.credits || 3), 0)}/180
                   </p>
                 </div>
               </div>
@@ -203,7 +243,7 @@ const Analysis = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Aufgaben</p>
                   <p className="text-2xl font-bold">
-                    {mockAnalytics.completedAssignments}/{mockAnalytics.totalAssignments}
+                    {recentGrades}/{totalGrades}
                   </p>
                 </div>
               </div>
@@ -217,42 +257,92 @@ const Analysis = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Anstehend</p>
-                  <p className="text-2xl font-bold">{mockAnalytics.upcomingDeadlines}</p>
+                  <p className="text-2xl font-bold">{subjects.length}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Grade Trend Chart */}
+        {/* German Gymnasium Component Breakdown */}
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Notenentwicklung
+              <Award className="w-5 h-5" />
+              Bewertungskomponenten (Deutsches Gymnasium)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
-                <span>Schlechter</span>
-                <span>Besser</span>
-              </div>
-              {mockAnalytics.monthlyProgress.map((month, index) => (
-                <div key={month.month} className="flex items-center gap-4">
-                  <span className="w-12 text-sm font-medium">{month.month}</span>
-                  <div className="flex-1 relative">
-                    <div className="h-8 bg-gradient-to-r from-red-200 via-yellow-200 to-green-200 rounded-lg" />
-                    <div 
-                      className="absolute top-1 h-6 w-2 bg-primary rounded-sm shadow-sm"
-                      style={{ left: `${100 - (month.gpa - 1) * 20}%` }}
-                    />
-                  </div>
-                  <span className={`w-12 text-sm font-bold ${getGradeColor(month.gpa)}`}>
-                    {month.gpa.toFixed(1)}
-                  </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Written Exams */}
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <h4 className="font-semibold">Schriftliche Prüfungen</h4>
                 </div>
-              ))}
+                <p className={`text-2xl font-bold ${analytics.componentBreakdown.writtenExams.average ? getGradeColor(analytics.componentBreakdown.writtenExams.average) : 'text-gray-500'}`}>
+                  {analytics.componentBreakdown.writtenExams.average ? formatGrade(analytics.componentBreakdown.writtenExams.average) : 'N/A'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {analytics.componentBreakdown.writtenExams.count} Bewertungen
+                </p>
+              </div>
+
+              {/* SoMi */}
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <h4 className="font-semibold">SoMi (Sonstige Mitarbeit)</h4>
+                </div>
+                <p className={`text-2xl font-bold ${analytics.componentBreakdown.somi.average ? getGradeColor(analytics.componentBreakdown.somi.average) : 'text-gray-500'}`}>
+                  {analytics.componentBreakdown.somi.average ? formatGrade(analytics.componentBreakdown.somi.average) : 'N/A'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {analytics.componentBreakdown.somi.count} Bewertungen
+                </p>
+              </div>
+
+              {/* Projects */}
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <h4 className="font-semibold">Projekte & Präsentationen</h4>
+                </div>
+                <p className={`text-2xl font-bold ${analytics.componentBreakdown.projects.average ? getGradeColor(analytics.componentBreakdown.projects.average) : 'text-gray-500'}`}>
+                  {analytics.componentBreakdown.projects.average ? formatGrade(analytics.componentBreakdown.projects.average) : 'N/A'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {analytics.componentBreakdown.projects.count} Bewertungen
+                </p>
+              </div>
+
+              {/* Practical */}
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                  <h4 className="font-semibold">Praktische Elemente</h4>
+                </div>
+                <p className={`text-2xl font-bold ${analytics.componentBreakdown.practical.average ? getGradeColor(analytics.componentBreakdown.practical.average) : 'text-gray-500'}`}>
+                  {analytics.componentBreakdown.practical.average ? formatGrade(analytics.componentBreakdown.practical.average) : 'N/A'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {analytics.componentBreakdown.practical.count} Bewertungen
+                </p>
+              </div>
+
+              {/* Effort & Progress */}
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                  <h4 className="font-semibold">Anstrengung & Fortschritt</h4>
+                </div>
+                <p className={`text-2xl font-bold ${analytics.componentBreakdown.effortProgress.average ? getGradeColor(analytics.componentBreakdown.effortProgress.average) : 'text-gray-500'}`}>
+                  {analytics.componentBreakdown.effortProgress.average ? formatGrade(analytics.componentBreakdown.effortProgress.average) : 'N/A'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {analytics.componentBreakdown.effortProgress.count} Bewertungen
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -267,7 +357,7 @@ const Analysis = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockAnalytics.subjectPerformance.map((subject) => (
+              {subjectPerformance.map((subject) => (
                 <div key={subject.id} className="p-4 border rounded-lg">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
@@ -288,14 +378,14 @@ const Analysis = () => {
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">Aktuelle Note</p>
-                      <p className={`text-lg font-bold ${getGradeColor(subject.currentGrade)}`}>
-                        {subject.currentGrade.toFixed(1)}
+                      <p className={`text-lg font-bold ${subject.currentGrade ? getGradeColor(subject.currentGrade) : 'text-gray-500'}`}>
+                        {subject.currentGrade ? subject.currentGrade.toFixed(1) : 'N/A'}
                       </p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">Ziel-Note</p>
                       <p className="text-lg font-bold text-primary">
-                        {subject.targetGrade.toFixed(1)}
+                        {subject.targetGrade ? subject.targetGrade.toFixed(1) : 'N/A'}
                       </p>
                     </div>
                     <div>

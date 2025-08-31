@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -120,6 +120,10 @@ export const SyllabusManager = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['syllabus-topics', user?.id] });
+      // Also invalidate all topic queries used by Notes component
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === 'syllabus-topics'
+      });
       setTopicFormData({ title: '', description: '' });
       setSelectedSubjectId('');
       setIsTopicDialogOpen(false);
@@ -149,6 +153,10 @@ export const SyllabusManager = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subtopics', user?.id] });
+      // Also invalidate all subtopic queries used by Notes component
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === 'subtopics'
+      });
       setSubtopicFormData({ title: '', description: '' });
       setSelectedTopicId('');
       setIsSubtopicDialogOpen(false);
@@ -172,6 +180,10 @@ export const SyllabusManager = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subtopics', user?.id] });
+      // Also invalidate all subtopic queries used by Notes component
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === 'subtopics'
+      });
     },
     onError: (error) => {
       toast({ title: 'Error', description: 'Failed to update subtopic', variant: 'destructive' });
@@ -194,6 +206,10 @@ export const SyllabusManager = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['syllabus-topics', user?.id] });
+      // Also invalidate all topic queries used by Notes component
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === 'syllabus-topics'
+      });
       toast({ title: 'Success', description: 'Topic updated successfully' });
     },
     onError: (error) => {
@@ -214,6 +230,13 @@ export const SyllabusManager = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['syllabus-topics', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['subtopics', user?.id] });
+      // Also invalidate all queries used by Notes component
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === 'syllabus-topics'
+      });
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === 'subtopics'
+      });
       toast({ title: 'Success', description: 'Topic deleted successfully' });
     },
     onError: (error) => {
@@ -236,6 +259,10 @@ export const SyllabusManager = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subtopics', user?.id] });
+      // Also invalidate all subtopic queries used by Notes component
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === 'subtopics'
+      });
       toast({ title: 'Success', description: 'Subtopic updated successfully' });
     },
     onError: (error) => {
@@ -255,6 +282,10 @@ export const SyllabusManager = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subtopics', user?.id] });
+      // Also invalidate all subtopic queries used by Notes component
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === 'subtopics'
+      });
       toast({ title: 'Success', description: 'Subtopic deleted successfully' });
     },
     onError: (error) => {
@@ -352,7 +383,22 @@ export const SyllabusManager = () => {
     });
   };
 
-  const subjectsWithData = getSubjectsWithTopicsAndSubtopics();
+  const subjectsWithData = useMemo(() => {
+    return getSubjectsWithTopicsAndSubtopics();
+  }, [subjects, topics, subtopics]);
+
+  // Update selectedTopic with current data when topics/subtopics change
+  const currentSelectedTopic = useMemo(() => {
+    if (!selectedTopic) return null;
+    const currentSubject = subjectsWithData.find(s => s.id === selectedSubject?.id);
+    return currentSubject?.topics.find(t => t.id === selectedTopic.id) || selectedTopic;
+  }, [selectedTopic, subjectsWithData, selectedSubject]);
+
+  // Update selectedSubject with current data when topics/subtopics change
+  const currentSelectedSubject = useMemo(() => {
+    if (!selectedSubject) return null;
+    return subjectsWithData.find(s => s.id === selectedSubject.id) || selectedSubject;
+  }, [selectedSubject, subjectsWithData]);
 
   if (topicsLoading || subtopicsLoading || subjectsLoading) {
     return <div>Loading...</div>;
@@ -601,9 +647,9 @@ export const SyllabusManager = () => {
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
-                <DialogTitle className="text-2xl">{selectedSubject?.name}</DialogTitle>
-                {selectedSubject?.description && (
-                  <p className="text-muted-foreground">{selectedSubject.description}</p>
+                <DialogTitle className="text-2xl">{currentSelectedSubject?.name}</DialogTitle>
+                {currentSelectedSubject?.description && (
+                  <p className="text-muted-foreground">{currentSelectedSubject.description}</p>
                 )}
               </div>
               {canEdit && (
@@ -611,7 +657,7 @@ export const SyllabusManager = () => {
                   onClick={() => {
                     setEditingTopic(null);
                     setTopicFormData({ title: '', description: '' });
-                    setSelectedSubjectId(selectedSubject?.id || '');
+                    setSelectedSubjectId(currentSelectedSubject?.id || '');
                     setIsTopicDialogOpen(true);
                   }}
                   size="sm"
@@ -622,10 +668,10 @@ export const SyllabusManager = () => {
               )}
             </div>
           </DialogHeader>
-          {selectedSubject && (
+          {currentSelectedSubject && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(selectedSubject as SubjectWithTopics).topics?.map((topic) => (
+                {(currentSelectedSubject as SubjectWithTopics).topics?.map((topic) => (
                   <Card
                     key={topic.id}
                     className="cursor-pointer hover:shadow-md transition-shadow"
@@ -675,7 +721,7 @@ export const SyllabusManager = () => {
                     </CardHeader>
                   </Card>
                 )) || []}
-                {(!(selectedSubject as SubjectWithTopics).topics || (selectedSubject as SubjectWithTopics).topics.length === 0) && (
+                {(!(currentSelectedSubject as SubjectWithTopics).topics || (currentSelectedSubject as SubjectWithTopics).topics.length === 0) && (
                   <div className="col-span-full text-center py-8 text-muted-foreground">
                     <Target className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p>No topics yet for this subject</p>
@@ -692,12 +738,12 @@ export const SyllabusManager = () => {
       <Dialog open={isTopicModalOpen} onOpenChange={setIsTopicModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-2xl">{selectedTopic?.title}</DialogTitle>
-            {selectedTopic?.description && (
-              <p className="text-muted-foreground">{selectedTopic.description}</p>
+            <DialogTitle className="text-2xl">{currentSelectedTopic?.title}</DialogTitle>
+            {currentSelectedTopic?.description && (
+              <p className="text-muted-foreground">{currentSelectedTopic.description}</p>
             )}
           </DialogHeader>
-          {selectedTopic && (
+          {currentSelectedTopic && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h4 className="text-lg font-semibold">Subtopics</h4>
@@ -705,7 +751,7 @@ export const SyllabusManager = () => {
                   onClick={() => {
                     setEditingSubtopic(null);
                     setSubtopicFormData({ title: '', description: '' });
-                    setSelectedTopicId(selectedTopic.id);
+                    setSelectedTopicId(currentSelectedTopic.id);
                     setIsSubtopicDialogOpen(true);
                   }}
                   size="sm"
@@ -716,7 +762,7 @@ export const SyllabusManager = () => {
                 </Button>
               </div>
               <div className="space-y-3">
-                {selectedTopic.subtopics?.map((subtopic) => (
+                {currentSelectedTopic.subtopics?.map((subtopic) => (
                   <div
                     key={subtopic.id}
                     className="flex items-center gap-3 p-4 rounded-lg border bg-muted/30"

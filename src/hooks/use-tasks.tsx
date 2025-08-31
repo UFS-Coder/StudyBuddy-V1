@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./use-auth";
+import { useToast } from "./use-toast";
 
 export interface Task {
   id: string;
@@ -102,4 +103,110 @@ export const getTotalOpenHomeworkCount = (tasks: Task[]): number => {
     !task.completed &&
     (!task.due_date || new Date(task.due_date) >= new Date())
   ).length;
+};
+
+// CRUD Mutations
+export const useCreateTask = () => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (taskData: Omit<Task, "id" | "user_id" | "created_at" | "updated_at">) => {
+      if (!user) throw new Error("User not authenticated");
+
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert({
+          ...taskData,
+          user_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as Task;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast({
+        title: "Erfolg",
+        description: "Aufgabe wurde erfolgreich erstellt.",
+      });
+    },
+    onError: (error) => {
+      console.error("Error creating task:", error);
+      toast({
+        title: "Fehler",
+        description: "Aufgabe konnte nicht erstellt werden.",
+        variant: "destructive",
+      });
+    },
+  });
+};
+
+export const useUpdateTask = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<Task> & { id: string }) => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as Task;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast({
+        title: "Erfolg",
+        description: "Aufgabe wurde erfolgreich aktualisiert.",
+      });
+    },
+    onError: (error) => {
+      console.error("Error updating task:", error);
+      toast({
+        title: "Fehler",
+        description: "Aufgabe konnte nicht aktualisiert werden.",
+        variant: "destructive",
+      });
+    },
+  });
+};
+
+export const useDeleteTask = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from("tasks")
+        .delete()
+        .eq("id", taskId);
+
+      if (error) throw error;
+      return taskId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast({
+        title: "Erfolg",
+        description: "Aufgabe wurde erfolgreich gelöscht.",
+      });
+    },
+    onError: (error) => {
+      console.error("Error deleting task:", error);
+      toast({
+        title: "Fehler",
+        description: "Aufgabe konnte nicht gelöscht werden.",
+        variant: "destructive",
+      });
+    },
+  });
 };

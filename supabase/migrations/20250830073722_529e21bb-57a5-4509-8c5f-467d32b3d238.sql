@@ -7,6 +7,7 @@ CREATE TABLE public.syllabus_topics (
   subject_id UUID NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
+  theme_id UUID REFERENCES public.themes(id) ON DELETE SET NULL,
   order_index INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
@@ -158,6 +159,7 @@ CREATE TABLE public.notes (
   user_id UUID NOT NULL,
   subject_id UUID,
   topic_id UUID,
+  subtopic_id UUID REFERENCES public.subtopics(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
   content TEXT,
   tags TEXT[],
@@ -215,3 +217,9 @@ CREATE TRIGGER update_notes_updated_at
 BEFORE UPDATE ON public.notes
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Create index for theme_id in syllabus_topics
+CREATE INDEX idx_syllabus_topics_theme_id ON public.syllabus_topics(theme_id);
+
+-- Create index for subtopic_id in notes
+CREATE INDEX idx_notes_subtopic_id ON public.notes(subtopic_id);

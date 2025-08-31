@@ -29,14 +29,33 @@ interface GradeFormData {
 }
 
 const GRADE_TYPES = [
-  'Klassenarbeit',
+  // 1. Written exams
   'Klausur',
+  'Klassenarbeit',
   'Test',
-  'Mündliche Note',
+  
+  // 2. SoMi (Sonstige Mitarbeit)
+  'Meldung',
   'Hausaufgabe',
-  'Referat',
-  'Projekt',
   'Mitarbeit',
+  'Mündliche Note',
+  
+  // 3. Projects, presentations, Facharbeit
+  'Referat',
+  'Präsentation',
+  'Projekt',
+  'Facharbeit',
+  
+  // 4. Special/practical subject elements
+  'Praktikum',
+  'Laborarbeit',
+  'Experiment',
+  'Exkursion',
+  
+  // 5. Effort & progress (qualitative assessment)
+  'Lernfortschritt',
+  'Anstrengungsbereitschaft',
+  
   'Sonstiges'
 ];
 
