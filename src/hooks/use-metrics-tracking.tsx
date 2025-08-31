@@ -54,13 +54,14 @@ export const useMetricsTracking = () => {
   const getCurrentMetrics = (): MetricSnapshot => {
     // Curriculum progress calculation
     const calculateSubjectStats = (subjectId: string) => {
-      const subjectTopics = topics.filter(topic => topic.subject_id === subjectId);
+      const subjectTopics = syllabusTopics.filter(topic => topic.subject_id === subjectId);
       const totalTopics = subjectTopics.length;
       const completedTopics = 0; // Will be implemented when completion tracking is added
       
-      const allSubtopics = subjectTopics.flatMap(topic => topic.subtopics || []);
-      const totalSubtopics = allSubtopics.length;
-      const completedSubtopics = 0; // Will be implemented when completion tracking is added
+      const topicIds = subjectTopics.map(topic => topic.id);
+      const subjectSubtopics = subtopics.filter(subtopic => topicIds.includes(subtopic.topic_id));
+      const totalSubtopics = subjectSubtopics.length;
+      const completedSubtopics = subjectSubtopics.filter(subtopic => subtopic.completed).length;
       
       return {
         totalTopics,
@@ -110,17 +111,30 @@ export const useMetricsTracking = () => {
     };
   };
 
-  // Fetch topics for curriculum progress calculation
-  const { data: topics = [] } = useQuery({
+  // Fetch syllabus topics for curriculum progress
+  const { data: syllabusTopics = [] } = useQuery({
     queryKey: ['syllabus-topics', user?.id],
     queryFn: async () => {
       if (!user) return [];
       const { data, error } = await supabase
         .from('syllabus_topics')
-        .select(`
-          *,
-          subtopics!topic_id(*)
-        `)
+        .select('*')
+        .eq('user_id', user.id);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user
+  });
+
+  // Fetch subtopics separately
+  const { data: subtopics = [] } = useQuery({
+    queryKey: ['subtopics', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('subtopics')
+        .select('*')
         .eq('user_id', user.id);
       
       if (error) throw error;

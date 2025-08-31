@@ -160,7 +160,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
       <SheetContent 
         side="right" 
         className={cn(
-          "p-0 flex flex-col transition-all duration-300",
+          "p-0 flex flex-col transition-all duration-300 w-full",
           showHistory ? "sm:max-w-[1200px]" : "sm:max-w-[800px]"
         )}
       >
