@@ -108,7 +108,7 @@ const Index = () => {
           // Curriculum progress
           if (metricsChanges?.curriculum_progress !== null && metricsChanges?.curriculum_progress !== undefined) {
             const change = metricsChanges.curriculum_progress.change_percentage;
-            if (Math.abs(change) >= 0.1) {
+            if (Math.abs(change) >= 0.1 && change !== null && change !== undefined) {
               setCurriculumChange(change > 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`);
               setCurriculumChangeType(change > 0 ? 'positive' : 'negative');
             } else {
