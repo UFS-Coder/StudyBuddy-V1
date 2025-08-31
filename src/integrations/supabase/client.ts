@@ -5,20 +5,32 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Create supabase client with fallback for missing environment variables
+let supabaseUrl = SUPABASE_URL;
+let supabaseKey = SUPABASE_PUBLISHABLE_KEY;
+
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-  throw new Error('Missing Supabase environment variables');
+  console.error('Missing Supabase environment variables:', {
+    SUPABASE_URL: SUPABASE_URL ? 'present' : 'missing',
+    SUPABASE_PUBLISHABLE_KEY: SUPABASE_PUBLISHABLE_KEY ? 'present' : 'missing'
+  });
+  // Use dummy values to prevent crashes in production
+  supabaseUrl = 'https://dummy.supabase.co';
+  supabaseKey = 'dummy-key';
 }
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
   }
 });
+
+// Import the supabase client like this:
+// import { supabase } from "@/integrations/supabase/client";
+
+// Supabase client is exported above based on environment variable availability
 
 // Global error handler for auth errors
 supabase.auth.onAuthStateChange((event, session) => {

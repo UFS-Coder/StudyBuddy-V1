@@ -153,20 +153,20 @@ export function SubjectsModal({ isOpen, onClose, subjects, title }: SubjectsModa
                         {/* Right side: Grades */}
                         {(subject.current_grade !== undefined || subject.target_grade !== undefined) && (
                           <div className="flex items-center gap-4 text-sm ml-4">
-                            {subject.current_grade !== undefined && (
+                            {subject.current_grade !== undefined && subject.current_grade !== null && !isNaN(subject.current_grade) ? (
                               <div className="flex items-center gap-1">
                                 <span className="text-muted-foreground">Current:</span>
                                 <span className={`font-medium ${getGradeColor(subject.current_grade, subject.target_grade)}`}>
                                   {subject.current_grade.toFixed(1)}
                                 </span>
                               </div>
-                            )}
-                            {subject.target_grade !== undefined && (
+                            ) : null}
+                            {subject.target_grade !== undefined && subject.target_grade !== null && !isNaN(subject.target_grade) ? (
                               <div className="flex items-center gap-1">
                                 <span className="text-muted-foreground">Target:</span>
                                 <span className="font-medium">{subject.target_grade.toFixed(1)}</span>
                               </div>
-                            )}
+                            ) : null}
                           </div>
                         )}
                       </div>

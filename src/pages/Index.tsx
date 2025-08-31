@@ -108,7 +108,7 @@ const Index = () => {
           // Curriculum progress
           if (metricsChanges?.curriculum_progress !== null && metricsChanges?.curriculum_progress !== undefined) {
             const change = metricsChanges.curriculum_progress.change_percentage;
-            if (Math.abs(change) >= 0.1 && change !== null && change !== undefined) {
+            if (change !== null && change !== undefined && !isNaN(change) && Math.abs(change) >= 0.1) {
               setCurriculumChange(change > 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`);
               setCurriculumChangeType(change > 0 ? 'positive' : 'negative');
             } else {
@@ -190,8 +190,11 @@ const Index = () => {
         .select('*')
         .eq('user_id', user.id)
         .order('order_index');
-      if (error) throw error;
-      return data;
+      if (error || !Array.isArray(data)) return [];
+      // Defensive: filter out null/undefined/invalid topics
+      return (data || []).filter(
+        t => t && typeof t === 'object' && t.id && t.subject_id
+      );
     },
     enabled: !!user,
   });
@@ -206,31 +209,43 @@ const Index = () => {
         .select('*')
         .eq('user_id', user.id)
         .order('order_index');
-      if (error) throw error;
-      return data;
+      if (error || !Array.isArray(data)) return [];
+      // Defensive: filter out null/undefined/invalid subtopics
+      return (data || []).filter(
+        s => s && typeof s === 'object' && s.id && s.topic_id
+      );
     },
     enabled: !!user,
   });
 
   // Calculate topic and subtopic statistics for each subject
   const calculateSubjectStats = (subjectId: string) => {
-    const subjectTopics = topics.filter(topic => topic.subject_id === subjectId);
-    const subjectSubtopics = subtopics.filter(subtopic => 
-      subjectTopics.some(topic => topic.id === subtopic.topic_id)
+    const subjectTopics = (topics || []).filter(
+      topic => topic && topic.subject_id === subjectId
     );
-    
-    const completedSubtopics = subjectSubtopics.filter(subtopic => subtopic.completed).length;
+    const subjectSubtopics = (subtopics || []).filter(
+      subtopic =>
+        subtopic &&
+        subjectTopics.some(topic => topic && topic.id === subtopic.topic_id)
+    );
+    const completedSubtopics = subjectSubtopics.filter(
+      subtopic => subtopic && subtopic.completed
+    ).length;
     const progress = subjectSubtopics.length > 0 ? (completedSubtopics / subjectSubtopics.length) * 100 : 0;
-    
     return {
       totalTopics: subjectTopics.length,
       completedTopics: subjectTopics.filter(topic => {
-        const topicSubtopics = subtopics.filter(s => s.topic_id === topic.id);
-        return topicSubtopics.length > 0 && topicSubtopics.every(s => s.completed);
+        const topicSubtopics = (subtopics || []).filter(
+          s => s && s.topic_id === topic.id
+        );
+        return (
+          topicSubtopics.length > 0 &&
+          topicSubtopics.every(s => s && s.completed)
+        );
       }).length,
       totalSubtopics: subjectSubtopics.length,
       completedSubtopics,
-      progress: Math.round(progress)
+      progress: isNaN(progress) ? 0 : Math.round(progress)
     };
   };
 

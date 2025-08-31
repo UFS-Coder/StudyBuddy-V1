@@ -379,6 +379,9 @@ export function getGermanGradeName(grade: number): string {
  * Formats grade for display (2 decimal places)
  */
 export function formatGrade(grade: number): string {
+  if (grade === null || grade === undefined || isNaN(grade)) {
+    return '--';
+  }
   return grade.toFixed(2);
 }
 
