@@ -357,11 +357,12 @@ const Index = () => {
 
   // Calculate total open tasks, homework and oral contributions from real data
   const totalOpenTasks = tasks.filter(task => 
-    !task.completed &&
-    (!task.due_date || new Date(task.due_date) >= new Date())
+    task.type === 'task' && !task.completed
   ).length;
   
-  const totalOpenHomework = getTotalOpenHomeworkCount(tasks);
+  const totalOpenHomework = tasks.filter(task => 
+    task.type === 'homework' && !task.completed
+  ).length;
   
   // Calculate total Meldungen for today
   const totalMeldungenToday = todayMeldungen.reduce((sum, meldung) => sum + meldung.count, 0);
@@ -398,6 +399,8 @@ const Index = () => {
             onPeriodChange={setSelectedTimePeriod}
           />
         )}
+        
+
         
         {/* Metrics Grid - only show if there's data */}
         {(subjects.length > 0 || tasks.length > 0) && (
@@ -508,22 +511,22 @@ const Index = () => {
       <TasksModal 
         isOpen={isTasksModalOpen}
         onClose={() => setIsTasksModalOpen(false)}
-        tasks={tasks.filter(task => !task.completed && task.type === 'task').map(task => ({
+        tasks={tasks.filter(task => task.type === 'task').map(task => ({
           ...task,
           subject: subjects.find(s => s.id === task.subject_id)
         }))}
-        title="Open Tasks"
+        title="All Tasks"
       />
       
       {/* Homework Modal */}
       <HomeworkModal 
         isOpen={isHomeworkModalOpen}
         onClose={() => setIsHomeworkModalOpen(false)}
-        homework={tasks.filter(task => !task.completed && task.type === 'homework').map(task => ({
+        homework={tasks.filter(task => task.type === 'homework').map(task => ({
           ...task,
           subject: subjects.find(s => s.id === task.subject_id)
         }))}
-        title="Open Homework"
+        title="All Homework"
       />
       
       {/* Subjects Modal */}

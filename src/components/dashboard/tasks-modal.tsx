@@ -3,6 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckSquare, Clock, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
+import { useUpdateTask } from "@/hooks/use-tasks";
+import { useState } from "react";
 
 interface Task {
   id: string;
@@ -26,6 +28,39 @@ interface TasksModalProps {
 }
 
 export function TasksModal({ isOpen, onClose, tasks, title }: TasksModalProps) {
+  const updateTaskMutation = useUpdateTask();
+  const [filter, setFilter] = useState<'all' | 'open' | 'completed'>('all');
+  
+  const handleToggleComplete = (taskId: string, completed: boolean) => {
+    updateTaskMutation.mutate({ id: taskId, completed: !completed });
+  };
+  
+  const openTasks = tasks.filter(task => !task.completed);
+  const completedTasks = tasks.filter(task => task.completed);
+  
+  const getFilteredTasks = () => {
+    let filteredTasks;
+    switch (filter) {
+      case 'open':
+        filteredTasks = openTasks;
+        break;
+      case 'completed':
+        filteredTasks = completedTasks;
+        break;
+      default:
+        filteredTasks = tasks;
+        break;
+    }
+    
+    // Sort so completed tasks appear at the bottom
+    return filteredTasks.sort((a, b) => {
+      if (a.completed === b.completed) return 0;
+      return a.completed ? 1 : -1;
+    });
+  };
+  
+  const filteredTasks = getFilteredTasks();
+  
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'high':
@@ -59,32 +94,61 @@ export function TasksModal({ isOpen, onClose, tasks, title }: TasksModalProps) {
           <DialogTitle className="flex items-center gap-2">
             <CheckSquare className="h-5 w-5" />
             {title}
-            <Badge variant="secondary">{tasks.length}</Badge>
           </DialogTitle>
+          <div className="flex items-center gap-2 mt-2">
+            <Badge 
+              variant={filter === 'all' ? 'default' : 'outline'}
+              className="cursor-pointer hover:bg-primary/80"
+              onClick={() => setFilter('all')}
+            >
+              All ({tasks.length})
+            </Badge>
+            <Badge 
+              variant={filter === 'open' ? 'default' : 'outline'}
+              className="cursor-pointer hover:bg-primary/80"
+              onClick={() => setFilter('open')}
+            >
+              Open ({openTasks.length})
+            </Badge>
+            {completedTasks.length > 0 && (
+              <Badge 
+                variant={filter === 'completed' ? 'default' : 'outline'}
+                className="cursor-pointer hover:bg-primary/80"
+                onClick={() => setFilter('completed')}
+              >
+                Completed ({completedTasks.length})
+              </Badge>
+            )}
+          </div>
         </DialogHeader>
         
         <div className="space-y-4">
-          {tasks.length === 0 ? (
+          {filteredTasks.length === 0 ? (
             <div className="text-center py-8">
               <CheckSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No tasks found</p>
+              <p className="text-muted-foreground">
+                {filter === 'open' ? 'No open tasks' : 
+                 filter === 'completed' ? 'No completed tasks' : 
+                 'No tasks found'}
+              </p>
             </div>
           ) : (
-            tasks.map((task) => (
-              <Card key={task.id} className={`${task.completed ? 'opacity-60' : ''} ${isOverdue(task.due_date) ? 'border-red-200' : ''}`}>
+            filteredTasks.map((task) => (
+              <Card key={task.id} className={`${isOverdue(task.due_date) ? 'border-red-200' : ''}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
                       checked={task.completed}
-                      readOnly
-                      className="mt-1 rounded"
+                      onChange={() => handleToggleComplete(task.id, task.completed)}
+                      className="mt-1 rounded cursor-pointer"
+                      disabled={updateTaskMutation.isPending}
                     />
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center justify-between">
-                        <h4 className={`font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
+                        <h3 className={`font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
                           {task.title}
-                        </h4>
+                        </h3>
                         <div className="flex items-center gap-2">
                           <Badge 
                             variant="outline" 
@@ -95,6 +159,7 @@ export function TasksModal({ isOpen, onClose, tasks, title }: TasksModalProps) {
                           </Badge>
                           {isOverdue(task.due_date) && (
                             <Badge variant="destructive" className="text-xs">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
                               Overdue
                             </Badge>
                           )}
@@ -102,7 +167,9 @@ export function TasksModal({ isOpen, onClose, tasks, title }: TasksModalProps) {
                       </div>
                       
                       {task.description && (
-                        <p className="text-sm text-muted-foreground">{task.description}</p>
+                        <p className={`text-sm text-muted-foreground ${task.completed ? 'line-through' : ''}`}>
+                          {task.description}
+                        </p>
                       )}
                       
                       <div className="flex items-center justify-between">
@@ -117,9 +184,12 @@ export function TasksModal({ isOpen, onClose, tasks, title }: TasksModalProps) {
                             </Badge>
                           )}
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          Due: {format(new Date(task.due_date), 'MMM dd, yyyy')}
-                        </span>
+                        {task.due_date && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            Due: {format(new Date(task.due_date), 'MMM dd, yyyy')}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
