@@ -21,7 +21,7 @@ interface Note {
   title: string;
   content: string;
   tags: string[];
-  time_period: "day" | "week" | "month" | "quarter" | "half_year";
+  time_period: "day" | "week" | "month" | "quarter" | "half_year" | "one_time";
   subject_id: string | null;
   topic_id: string | null;
   created_at: string;
@@ -34,6 +34,7 @@ const TIME_PERIODS = [
   { value: "month", label: "Monthly" },
   { value: "quarter", label: "Quarterly" },
   { value: "half_year", label: "Half Year" },
+  { value: "one_time", label: "One-Time" },
 ];
 
 export const NotesManager = () => {
@@ -48,11 +49,12 @@ export const NotesManager = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
   const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<string>("");
   const [formData, setFormData] = useState({
     title: "",
     content: "",
     tags: "",
-    time_period: "week" as "day" | "week" | "month" | "quarter" | "half_year",
+    time_period: "one_time" as "day" | "week" | "month" | "quarter" | "half_year" | "one_time",
     subject_id: "",
   });
 
@@ -107,7 +109,7 @@ export const NotesManager = () => {
         title: "",
         content: "",
         tags: "",
-        time_period: "week",
+        time_period: "one_time",
         subject_id: "",
       });
       toast({ 
@@ -159,7 +161,7 @@ export const NotesManager = () => {
       title: "",
       content: "",
       tags: "",
-      time_period: "week",
+      time_period: "one_time",
       subject_id: "",
     });
     setIsDialogOpen(true);
@@ -177,7 +179,10 @@ export const NotesManager = () => {
       (selectedSubject === "general" && !note.subject_id) || 
       note.subject_id === selectedSubject;
     
-    return matchesSearch && matchesPeriod && matchesSubject;
+    const matchesDate = !selectedDate || 
+      format(new Date(note.created_at), "yyyy-MM-dd") === selectedDate;
+    
+    return matchesSearch && matchesPeriod && matchesSubject && matchesDate;
   });
 
   return (
@@ -291,14 +296,24 @@ export const NotesManager = () => {
       {/* Search and Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <div className="flex-1 relative">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex-1 min-w-64 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search notes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="date-filter" className="text-sm font-medium whitespace-nowrap">Filter by date:</Label>
+              <Input
+                id="date-filter"
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-40"
               />
             </div>
             <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>

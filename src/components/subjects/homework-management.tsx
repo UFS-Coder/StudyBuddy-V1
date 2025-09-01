@@ -30,7 +30,7 @@ interface Homework {
   due_date: string;
   completed: boolean;
   submitted_at: string | null;
-  time_period: "day" | "week" | "month" | "quarter" | "half_year";
+  time_period: "day" | "week" | "month" | "quarter" | "half_year" | "one_time";
   subject_id: string;
 }
 
@@ -44,6 +44,7 @@ const TIME_PERIODS = [
   { value: "month", label: "Monthly" },
   { value: "quarter", label: "Quarterly" },
   { value: "half_year", label: "Half Year" },
+  { value: "one_time", label: "One-Time" },
 ];
 
 export function HomeworkManagement({ subject }: HomeworkManagementProps) {
@@ -57,12 +58,12 @@ export function HomeworkManagement({ subject }: HomeworkManagementProps) {
     title: string;
     description: string;
     due_date: string;
-    time_period: "day" | "week" | "month" | "quarter" | "half_year";
+    time_period: "day" | "week" | "month" | "quarter" | "half_year" | "one_time";
   }>({
     title: "",
     description: "",
     due_date: "",
-    time_period: "week",
+    time_period: "one_time",
   });
 
   // Fetch homework for this subject
@@ -108,7 +109,7 @@ export function HomeworkManagement({ subject }: HomeworkManagementProps) {
         title: "",
         description: "",
         due_date: "",
-        time_period: "week",
+        time_period: "one_time",
       });
       toast({ title: "Success", description: "Homework created successfully" });
     },
@@ -224,7 +225,7 @@ export function HomeworkManagement({ subject }: HomeworkManagementProps) {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="time_period">Time Period</Label>
-                      <Select value={homeworkFormData.time_period} onValueChange={(value: "day" | "week" | "month" | "quarter" | "half_year") => 
+                      <Select value={homeworkFormData.time_period} onValueChange={(value: "day" | "week" | "month" | "quarter" | "half_year" | "one_time") => 
                         setHomeworkFormData(prev => ({ ...prev, time_period: value }))
                       }>
                         <SelectTrigger>

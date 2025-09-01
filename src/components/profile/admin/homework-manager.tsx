@@ -23,7 +23,7 @@ interface Homework {
   due_date: string;
   completed: boolean;
   submitted_at: string | null;
-  time_period: "day" | "week" | "month" | "quarter" | "half_year";
+  time_period: "day" | "week" | "month" | "quarter" | "half_year" | "one_time";
   subject_id: string;
 }
 
@@ -33,6 +33,7 @@ const TIME_PERIODS = [
   { value: "month", label: "Monthly" },
   { value: "quarter", label: "Quarterly" },
   { value: "half_year", label: "Half Year" },
+  { value: "one_time", label: "One Time" },
 ];
 
 export const HomeworkManager = () => {
@@ -47,7 +48,7 @@ export const HomeworkManager = () => {
     title: "",
     description: "",
     due_date: "",
-    time_period: "week" as const,
+    time_period: "one_time" as const,
     subject_id: "",
   });
 
@@ -92,7 +93,7 @@ export const HomeworkManager = () => {
         title: "",
         description: "",
         due_date: "",
-        time_period: "week",
+        time_period: "one_time",
         subject_id: "",
       });
       toast({ title: "Success", description: "Homework created successfully" });

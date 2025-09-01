@@ -23,7 +23,7 @@ interface Task {
   due_date: string | null;
   completed: boolean;
   priority: "low" | "medium" | "high";
-  time_period: "day" | "week" | "month" | "quarter" | "half_year";
+  time_period: "day" | "week" | "month" | "quarter" | "half_year" | "one_time";
   subject_id: string | null;
   topic_id: string | null;
 }
@@ -34,6 +34,7 @@ const TIME_PERIODS = [
   { value: "month", label: "Monthly" },
   { value: "quarter", label: "Quarterly" },
   { value: "half_year", label: "Half Year" },
+  { value: "one_time", label: "One Time" },
 ];
 
 const PRIORITIES = [
@@ -55,7 +56,7 @@ export const TaskManager = () => {
     description: "",
     due_date: "",
     priority: "medium" as const,
-    time_period: "week" as const,
+    time_period: "one_time" as const,
     subject_id: "",
   });
 
@@ -102,7 +103,7 @@ export const TaskManager = () => {
         description: "",
         due_date: "",
         priority: "medium",
-        time_period: "week",
+        time_period: "one_time",
         subject_id: "",
       });
       toast({ title: "Success", description: "Task created successfully" });

@@ -74,7 +74,7 @@ export const UnifiedTaskManager = () => {
     description: "",
     due_date: "",
     priority: "medium",
-    time_period: "day",
+    time_period: "one_time",
     subject_id: "",
     type: "task"
   });
@@ -120,7 +120,7 @@ export const UnifiedTaskManager = () => {
         type: "homework" as const,
         priority: hw.priority || "medium" as const,
         topic_id: hw.topic_id || null,
-        time_period: hw.time_period as "day" | "week" | "month" | "quarter" | "half_year" | "one_time" || "week",
+        time_period: hw.time_period as "day" | "week" | "month" | "quarter" | "half_year" | "one_time" || "one_time",
         submitted_at: null // Will be added when database migration runs
       })) as Task[];
     },

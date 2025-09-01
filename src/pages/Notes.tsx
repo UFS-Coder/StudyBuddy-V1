@@ -42,6 +42,7 @@ const Notes = () => {
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("all");
+  const [selectedDate, setSelectedDate] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [viewingNote, setViewingNote] = useState<Note | null>(null);
@@ -231,7 +232,10 @@ const Notes = () => {
       (selectedSubject === "general" && !note.subject_id) || 
       note.subject_id === selectedSubject;
     
-    return matchesSearch && matchesSubject;
+    const matchesDate = !selectedDate || 
+      new Date(note.created_at).toISOString().split('T')[0] === selectedDate;
+    
+    return matchesSearch && matchesSubject && matchesDate;
   });
 
   const handleEdit = (note: Note) => {
@@ -515,8 +519,8 @@ const Notes = () => {
         </Dialog>
 
         {/* Search and Filter */}
-        <div className="flex gap-4 mb-6">
-          <div className="flex-1 relative">
+        <div className="flex gap-4 mb-6 flex-wrap">
+          <div className="flex-1 min-w-64 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               placeholder="Notizen durchsuchen..."
@@ -525,21 +529,31 @@ const Notes = () => {
               className="pl-10"
             />
           </div>
-          <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-            <SelectTrigger className="w-48">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Fächer</SelectItem>
-              <SelectItem value="general">Allgemein</SelectItem>
-              {subjects?.map((subject) => (
-                <SelectItem key={subject.id} value={subject.id}>
-                  {subject.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Input
+              id="date-filter"
+              type="date"
+              aria-label="Datum"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-40"
+            />
+            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <SelectTrigger className="w-48">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Fächer</SelectItem>
+                <SelectItem value="general">Allgemein</SelectItem>
+                {subjects?.map((subject) => (
+                  <SelectItem key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Notes Grid */}

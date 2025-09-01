@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
 import { useSubjects } from "@/hooks/use-subjects";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, Task } from "@/hooks/use-tasks";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Calendar as CalendarIcon, Plus, Clock, BookOpen, AlertCircle, CheckCircle, List, Grid3X3, ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -26,6 +27,7 @@ const Calendar = () => {
   const createTaskMutation = useCreateTask();
   const updateTaskMutation = useUpdateTask();
   const deleteTaskMutation = useDeleteTask();
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<"list" | "calendar">("calendar");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -51,17 +53,43 @@ const Calendar = () => {
     return `${year}-${month}-${day}`;
   };
 
+  // Helper function to format date for datetime-local input
+  const formatDateTimeLocal = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   // Convert tasks to calendar events format
   const calendarEvents = tasks.map(task => {
     const subject = subjects?.find(s => s.id === task.subject_id);
+    const dueDate = task.due_date ? new Date(task.due_date) : null;
+    
+    // Determine if the due_date has a time component (anything other than 00:00)
+    const hasTime = !!dueDate && (dueDate.getHours() !== 0 || dueDate.getMinutes() !== 0);
+    
+    // For date-only or midnight values, show as all-day event; otherwise, show the actual time
+    let timeDisplay = "";
+    if (dueDate) {
+      if (!hasTime) {
+        timeDisplay = "Ganztägig";
+      } else {
+        timeDisplay = dueDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+    
     return {
       id: task.id,
       title: task.title,
       description: task.description || "",
       subject_id: task.subject_id,
       subject_name: subject?.name || "Allgemein",
-      date: task.due_date ? formatDateLocal(new Date(task.due_date)) : "",
-      time: task.due_date ? new Date(task.due_date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : "",
+      date: dueDate ? formatDateLocal(dueDate) : "",
+      time: timeDisplay,
+      fullDate: dueDate,
       type: task.type,
       status: task.completed ? "completed" : "upcoming",
       priority: task.priority,
@@ -108,7 +136,28 @@ const Calendar = () => {
   };
 
   const upcomingEvents = calendarEvents.filter(event => event.status === "upcoming")
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => {
+      if (!a.fullDate || !b.fullDate) return 0;
+      return a.fullDate.getTime() - b.fullDate.getTime();
+    });
+
+  // Group events by date for list view
+  const groupedEvents = upcomingEvents.reduce((groups, event) => {
+    const dateKey = event.date || 'no-date';
+    if (!groups[dateKey]) {
+      groups[dateKey] = [];
+    }
+    groups[dateKey].push(event);
+    return groups;
+  }, {} as Record<string, typeof upcomingEvents>);
+
+  // Sort events within each day by time
+  Object.keys(groupedEvents).forEach(dateKey => {
+    groupedEvents[dateKey].sort((a, b) => {
+      if (!a.fullDate || !b.fullDate) return 0;
+      return a.fullDate.getTime() - b.fullDate.getTime();
+    });
+  });
 
   // Form validation
   const validateForm = () => {
@@ -147,11 +196,21 @@ const Calendar = () => {
       return;
     }
 
+    // Convert datetime-local format to ISO string for database
+    let formattedDueDate = newEvent.due_date;
+    if (newEvent.due_date) {
+      const date = new Date(newEvent.due_date);
+      if (!isNaN(date.getTime())) {
+        // Store absolute time in ISO (UTC)
+        formattedDueDate = date.toISOString();
+      }
+    }
+
     const taskData = {
       title: newEvent.title.trim(),
       description: newEvent.description.trim(),
       subject_id: newEvent.subject_id || null,
-      due_date: newEvent.due_date,
+      due_date: formattedDueDate,
       priority: newEvent.priority,
       type: newEvent.type,
       time_period: newEvent.time_period,
@@ -178,11 +237,22 @@ const Calendar = () => {
   const handleEditEvent = (event: any) => {
     const task = event.task;
     setEditingTask(task);
+    
+    // Convert due_date to datetime-local format in local time
+    let formattedDueDate = "";
+    if (task.due_date) {
+      const date = new Date(task.due_date);
+      if (!isNaN(date.getTime())) {
+        // Format to YYYY-MM-DDTHH:MM for datetime-local input using local timezone
+        formattedDueDate = formatDateTimeLocal(date);
+      }
+    }
+    
     setNewEvent({
       title: task.title,
       description: task.description || "",
       subject_id: task.subject_id || "",
-      due_date: task.due_date || "",
+      due_date: formattedDueDate,
       priority: task.priority,
       type: task.type,
       time_period: task.time_period
@@ -202,12 +272,22 @@ const Calendar = () => {
       return;
     }
 
+    // Convert datetime-local format to ISO string for database
+    let formattedDueDate = newEvent.due_date;
+    if (newEvent.due_date) {
+      const date = new Date(newEvent.due_date);
+      if (!isNaN(date.getTime())) {
+        // Store absolute time in ISO (UTC)
+        formattedDueDate = date.toISOString();
+      }
+    }
+
     const updates = {
       id: editingTask.id,
       title: newEvent.title.trim(),
       description: newEvent.description.trim(),
       subject_id: newEvent.subject_id || null,
-      due_date: newEvent.due_date,
+      due_date: formattedDueDate,
       priority: newEvent.priority,
       type: newEvent.type,
       time_period: newEvent.time_period
@@ -281,16 +361,19 @@ const Calendar = () => {
     // Only allow interaction with current date or future dates
     if (cellDate >= today) {
       if (eventsForDay.length === 0) {
-        // No events, open new event dialog with pre-filled date
+        // No events, open new event dialog with pre-filled date and default time
+        const defaultDate = new Date(cellDate);
+        defaultDate.setHours(12, 0, 0, 0); // Set default time to 12:00
         setNewEvent({
           title: "",
           description: "",
           subject_id: "",
-          due_date: formatDateLocal(cellDate),
+          due_date: formatDateTimeLocal(defaultDate),
           priority: "medium",
           type: "task",
           time_period: "week"
         });
+        setIsEditDialogOpen(false);
         setIsCreateDialogOpen(true);
       }
       // If there are events, clicking on individual events will handle editing
@@ -300,15 +383,18 @@ const Calendar = () => {
   // Handle adding new event to a day that already has events
   const handleAddEventToDay = (cellDate: Date, e: React.MouseEvent) => {
     e.stopPropagation();
+    const defaultDate = new Date(cellDate);
+    defaultDate.setHours(12, 0, 0, 0); // Set default time to 12:00
     setNewEvent({
       title: "",
       description: "",
       subject_id: "",
-      due_date: formatDateLocal(cellDate),
+      due_date: formatDateTimeLocal(defaultDate),
       priority: "medium",
       type: "task",
       time_period: "week"
     });
+    setIsEditDialogOpen(false);
     setIsCreateDialogOpen(true);
   };
 
@@ -327,7 +413,7 @@ const Calendar = () => {
     // Add empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
       days.push(
-        <div key={`empty-${i}`} className="h-16 md:h-24 border border-border/50"></div>
+        <div key={`empty-${i}`} className={`${isMobile ? 'h-12' : 'h-16 md:h-24'} border border-border/50`}></div>
       );
     }
 
@@ -342,21 +428,21 @@ const Calendar = () => {
       days.push(
         <div
           key={day}
-          className={`h-16 md:h-24 border border-border/50 p-1 overflow-hidden ${
+          className={`${isMobile ? 'h-12' : 'h-16 md:h-24'} border border-border/50 ${isMobile ? 'p-0.5' : 'p-1'} overflow-hidden ${
             isToday ? 'bg-primary/10 border-primary' : isPast ? 'bg-muted/30' : 'hover:bg-accent/50'
           } transition-colors ${isFutureOrToday ? 'cursor-pointer' : ''}`}
           onClick={() => handleDayClick(cellDate, eventsForDay)}
         >
-          <div className={`text-xs md:text-sm font-medium mb-1 ${
+          <div className={`${isMobile ? 'text-[10px]' : 'text-xs md:text-sm'} font-medium ${isMobile ? 'mb-0.5' : 'mb-1'} ${
             isToday ? 'text-primary font-bold' : isPast ? 'text-muted-foreground' : ''
           }`}>
             {day}
           </div>
-          <div className="space-y-1">
-            {eventsForDay.slice(0, 1).map((event, index) => (
+          <div className={isMobile ? 'space-y-0.5' : 'space-y-1'}>
+            {eventsForDay.slice(0, isMobile ? 1 : 2).map((event, index) => (
               <div
                 key={event.id}
-                className={`text-xs p-1 rounded group relative ${
+                className={`${isMobile ? 'text-[8px] p-0.5' : 'text-xs p-1'} rounded group relative ${
                   event.priority === 'high' ? 'bg-red-100 text-red-800' :
                   event.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
                   'bg-blue-100 text-blue-800'
@@ -515,11 +601,11 @@ const Calendar = () => {
               </div>
               {/* Edit Dialog */}
               <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent>
+                <DialogContent className={`${isMobile ? 'max-w-[95vw] max-h-[90vh] overflow-y-auto' : ''}`}>
                   <DialogHeader>
-                    <DialogTitle>Termin bearbeiten</DialogTitle>
+                    <DialogTitle className={isMobile ? 'text-lg' : ''}>Termin bearbeiten</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-4">
+                  <div className={`${isMobile ? 'space-y-3' : 'space-y-4'}`}>
                     <div>
                       <label className="text-sm font-medium">Titel *</label>
                       <Input
@@ -532,7 +618,7 @@ const Calendar = () => {
                         {newEvent.title.length}/100 Zeichen
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className={`grid ${isMobile ? 'grid-cols-1 gap-3' : 'grid-cols-2 gap-4'}`}>
                       <div>
                         <label className="text-sm font-medium">Typ</label>
                         <Select value={newEvent.type} onValueChange={(value) => setNewEvent({ ...newEvent, type: value as "task" | "homework" })}>
@@ -630,11 +716,11 @@ const Calendar = () => {
                     <span className="hidden sm:inline">Neuer Termin</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className={`${isMobile ? 'max-w-[95vw] max-h-[90vh] overflow-y-auto' : ''}`}>
                   <DialogHeader>
-                    <DialogTitle>Neuen Termin erstellen</DialogTitle>
+                    <DialogTitle className={isMobile ? 'text-lg' : ''}>Neuen Termin erstellen</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-4">
+                  <div className={`${isMobile ? 'space-y-3' : 'space-y-4'}`}>
                     <div>
                        <label className="text-sm font-medium">Titel *</label>
                        <Input
@@ -647,7 +733,7 @@ const Calendar = () => {
                          {newEvent.title.length}/100 Zeichen
                        </div>
                      </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className={`grid ${isMobile ? 'grid-cols-1 gap-3' : 'grid-cols-2 gap-4'}`}>
                       <div>
                         <label className="text-sm font-medium">Typ</label>
                         <Select value={newEvent.type} onValueChange={(value) => setNewEvent({ ...newEvent, type: value as "task" | "homework" })}>
@@ -804,71 +890,189 @@ const Calendar = () => {
             </CardHeader>
             <CardContent>
               {upcomingEvents.length > 0 ? (
-                <div className="space-y-4">
-                  {upcomingEvents.map((event) => (
-                    <div key={event.id} className="flex items-center gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                      <div className="flex items-center gap-2">
-                        {getEventTypeIcon(event.type)}
-                        {getStatusIcon(event.status)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium">{event.title}</h3>
-                          <Badge variant={getEventTypeColor(event.type, event.priority) as any}>
-                            {event.type === "homework" ? "Hausaufgabe" : "Aufgabe"}
+                <div className={`${isMobile ? 'space-y-4' : 'space-y-6'}`}>
+                  {Object.entries(groupedEvents).map(([dateKey, dayEvents]: [string, typeof upcomingEvents]) => {
+                    const eventDate = dayEvents[0]?.fullDate;
+                    const isToday = eventDate && eventDate.toDateString() === new Date().toDateString();
+                    const isTomorrow = eventDate && eventDate.toDateString() === new Date(Date.now() + 86400000).toDateString();
+                    
+                    let dateLabel = eventDate?.toLocaleDateString('de-DE', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    });
+                    
+                    // Additional month and day display for clarity
+                    const monthDay = eventDate?.toLocaleDateString('de-DE', {
+                      month: 'short',
+                      day: '2-digit'
+                    });
+                    
+                    if (isToday) dateLabel = `Heute, ${dateLabel}`;
+                    else if (isTomorrow) dateLabel = `Morgen, ${dateLabel}`;
+                    
+                    return (
+                      <div key={dateKey} className={`${isMobile ? 'space-y-2' : 'space-y-3'}`}>
+                        {/* Date Header */}
+                        <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'} pb-2 border-b`}>
+                          <CalendarIcon className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-primary`} />
+                          <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'}`}>
+                            <div className={`text-center bg-primary/10 rounded-lg ${isMobile ? 'p-1.5 min-w-[50px]' : 'p-2 min-w-[60px]'}`}>
+                              <div className={`${isMobile ? 'text-xs' : 'text-xs'} font-medium text-primary uppercase`}>
+                                {eventDate?.toLocaleDateString('de-DE', { month: 'short' })}
+                              </div>
+                              <div className={`${isMobile ? 'text-base' : 'text-lg'} font-bold text-primary`}>
+                                {eventDate?.getDate()}
+                              </div>
+                            </div>
+                            <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold text-foreground ${isMobile ? 'truncate' : ''}`}>
+                              {dateLabel}
+                            </h3>
+                          </div>
+                          <Badge variant="secondary" className={`ml-auto ${isMobile ? 'text-xs' : ''}`}>
+                            {dayEvents.length} {dayEvents.length === 1 ? 'Termin' : 'Termine'}
                           </Badge>
-                          <Badge variant="outline">
-                            {event.subject_name}
-                          </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground mb-2">{event.description}</p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <CalendarIcon className="w-3 h-3" />
-                            {new Date(event.date).toLocaleDateString('de-DE')}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {event.time}
-                          </span>
+                        
+                        {/* Events for this day */}
+                        <div className={`${isMobile ? 'space-y-1.5 ml-4' : 'space-y-2 ml-8'}`}>
+                          {dayEvents.map((event) => (
+                            <div key={event.id} className={`${isMobile ? 'flex flex-col gap-2 p-3' : 'flex items-center gap-4 p-3'} border rounded-lg hover:bg-accent/50 transition-colors`}>
+                              {isMobile ? (
+                                /* Mobile Layout - Stacked */
+                                <>
+                                  {/* Top Row: Time and Icons */}
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
+                                        {event.time || 'Ganztägig'}
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        {getEventTypeIcon(event.type)}
+                                        {getStatusIcon(event.status)}
+                                      </div>
+                                    </div>
+                                    {/* Action Buttons */}
+                                    <div className="flex items-center gap-0.5">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleToggleComplete(event)}
+                                        className="h-6 w-6 p-0"
+                                        title="Als erledigt markieren"
+                                      >
+                                        <CheckCircle className="w-3 h-3" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleEditEvent(event)}
+                                        className="h-6 w-6 p-0"
+                                        title="Bearbeiten"
+                                      >
+                                        <Edit className="w-3 h-3" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteEvent(event)}
+                                        className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                                        title="Löschen"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Title */}
+                                  <h4 className="text-sm font-medium text-foreground">{event.title}</h4>
+                                  
+                                  {/* Badges */}
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    <Badge variant={getEventTypeColor(event.type, event.priority) as any} className="text-xs px-1.5 py-0.5">
+                                      {event.type === "homework" ? "Hausaufgabe" : "Aufgabe"}
+                                    </Badge>
+                                    <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                                      {event.subject_name}
+                                    </Badge>
+                                  </div>
+                                  
+                                  {/* Description */}
+                                  {event.description && (
+                                    <p className="text-xs text-muted-foreground line-clamp-2">{event.description}</p>
+                                  )}
+                                </>
+                              ) : (
+                                /* Desktop Layout - Horizontal */
+                                <>
+                                  {/* Time Display */}
+                                  <div className="flex-shrink-0 text-center min-w-[60px]">
+                                    <div className="text-sm font-semibold text-primary">
+                                      {event.time || 'Ganztägig'}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Event Type Icons */}
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    {getEventTypeIcon(event.type)}
+                                    {getStatusIcon(event.status)}
+                                  </div>
+                                  
+                                  {/* Event Details */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <h4 className="font-medium text-foreground truncate">{event.title}</h4>
+                                      <Badge variant={getEventTypeColor(event.type, event.priority) as any} className="flex-shrink-0">
+                                        {event.type === "homework" ? "Hausaufgabe" : "Aufgabe"}
+                                      </Badge>
+                                      <Badge variant="outline" className="flex-shrink-0">
+                                        {event.subject_name}
+                                      </Badge>
+                                    </div>
+                                    {event.description && (
+                                      <p className="text-sm text-muted-foreground line-clamp-2">{event.description}</p>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Action Buttons */}
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleToggleComplete(event)}
+                                      className="h-8 w-8 p-0"
+                                      title="Als erledigt markieren"
+                                    >
+                                      <CheckCircle className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleEditEvent(event)}
+                                      className="h-8 w-8 p-0"
+                                      title="Bearbeiten"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteEvent(event)}
+                                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                      title="Löschen"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-right mr-4">
-                          <p className="text-sm font-medium">
-                            {Math.ceil((new Date(event.date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} Tage
-                          </p>
-                          <p className="text-xs text-muted-foreground">verbleibend</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleToggleComplete(event)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditEvent(event)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteEvent(event)}
-                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8">

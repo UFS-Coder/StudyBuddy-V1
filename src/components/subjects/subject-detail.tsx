@@ -161,7 +161,7 @@ function TaskManagement({ subject, onBack }: TaskManagementProps) {
     description: "",
     due_date: "",
     priority: "medium",
-    time_period: "week",
+    time_period: "one_time",
     type: "task",
   });
 
@@ -214,7 +214,7 @@ function TaskManagement({ subject, onBack }: TaskManagementProps) {
         description: "",
         due_date: "",
         priority: "medium",
-        time_period: "week",
+        time_period: "one_time",
         type: "task",
       });
       toast({ title: "Success", description: "Task created successfully" });
