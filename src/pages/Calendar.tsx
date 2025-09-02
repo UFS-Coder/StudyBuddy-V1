@@ -904,52 +904,89 @@ const Calendar = () => {
 
         {/* Quick Stats - Only show in list view */}
         {viewMode === "list" && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <AlertCircle className="w-5 h-5 text-red-600" />
+          <div className={`${isMobile ? 'flex justify-center' : 'grid grid-cols-1 md:grid-cols-3 gap-4'} mb-6`}>
+            {isMobile ? (
+              /* Mobile: Single row with counts only */
+              <Card className="w-full">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-around">
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="p-2 bg-red-100 rounded-lg">
+                        <AlertCircle className="w-4 h-4 text-red-600" />
+                      </div>
+                      <p className="text-lg font-bold">
+                        {calendarEvents.filter(e => e.priority === "high" && e.status === "upcoming").length}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <BookOpen className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <p className="text-lg font-bold">
+                        {calendarEvents.filter(e => e.type === "homework" && e.status === "upcoming").length}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                      </div>
+                      <p className="text-lg font-bold">
+                        {calendarEvents.filter(e => e.status === "completed").length}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Anstehende Klausuren</p>
-                    <p className="text-2xl font-bold">
-                      {calendarEvents.filter(e => e.priority === "high" && e.status === "upcoming").length}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <BookOpen className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Offene Hausarbeiten</p>
-                    <p className="text-2xl font-bold">
-                      {calendarEvents.filter(e => e.type === "homework" && e.status === "upcoming").length}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Abgeschlossen</p>
-                    <p className="text-2xl font-bold">
-                      {calendarEvents.filter(e => e.status === "completed").length}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            ) : (
+              /* Desktop: Original layout with text labels */
+              <>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-red-100 rounded-lg">
+                        <AlertCircle className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Anstehende Klausuren</p>
+                        <p className="text-2xl font-bold">
+                          {calendarEvents.filter(e => e.priority === "high" && e.status === "upcoming").length}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <BookOpen className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Offene Hausarbeiten</p>
+                        <p className="text-2xl font-bold">
+                          {calendarEvents.filter(e => e.type === "homework" && e.status === "upcoming").length}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Abgeschlossen</p>
+                        <p className="text-2xl font-bold">
+                          {calendarEvents.filter(e => e.status === "completed").length}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
         )}
 
@@ -966,15 +1003,17 @@ const Calendar = () => {
             <CardContent>
               {/* Date Selector */}
               <div className="flex items-center gap-4 mb-6 p-4 bg-muted/30 rounded-lg">
-                <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                  Datum auswählen:
-                </label>
+                {!isMobile && (
+                  <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                    Datum auswählen:
+                  </label>
+                )}
                 <div className="flex gap-2 flex-1">
                   {/* Day Selector */}
                   <select
                     value={selectedDay}
                     onChange={(e) => setSelectedDay(Number(e.target.value))}
-                    className="px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                    className={`px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent ${isMobile ? 'flex-1 min-w-0' : 'w-16'}`}
                   >
                     {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
                       <option key={day} value={day}>
@@ -987,21 +1026,21 @@ const Calendar = () => {
                   <select
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                    className="px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                    className={`px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent ${isMobile ? 'flex-1 min-w-0' : 'w-32'}`}
                   >
                     {[
-                      { value: 1, label: 'Januar' },
-                      { value: 2, label: 'Februar' },
-                      { value: 3, label: 'März' },
-                      { value: 4, label: 'April' },
+                      { value: 1, label: isMobile ? 'Jan' : 'Januar' },
+                      { value: 2, label: isMobile ? 'Feb' : 'Februar' },
+                      { value: 3, label: isMobile ? 'Mär' : 'März' },
+                      { value: 4, label: isMobile ? 'Apr' : 'April' },
                       { value: 5, label: 'Mai' },
-                      { value: 6, label: 'Juni' },
-                      { value: 7, label: 'Juli' },
-                      { value: 8, label: 'August' },
-                      { value: 9, label: 'September' },
-                      { value: 10, label: 'Oktober' },
-                      { value: 11, label: 'November' },
-                      { value: 12, label: 'Dezember' }
+                      { value: 6, label: isMobile ? 'Jun' : 'Juni' },
+                      { value: 7, label: isMobile ? 'Jul' : 'Juli' },
+                      { value: 8, label: isMobile ? 'Aug' : 'August' },
+                      { value: 9, label: isMobile ? 'Sep' : 'September' },
+                      { value: 10, label: isMobile ? 'Okt' : 'Oktober' },
+                      { value: 11, label: isMobile ? 'Nov' : 'November' },
+                      { value: 12, label: isMobile ? 'Dez' : 'Dezember' }
                     ].map(month => (
                       <option key={month.value} value={month.value}>
                         {month.label}
@@ -1013,7 +1052,7 @@ const Calendar = () => {
                   <select
                     value={selectedYear}
                     onChange={(e) => setSelectedYear(Number(e.target.value))}
-                    className="px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                    className={`px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent ${isMobile ? 'flex-1 min-w-0' : 'w-20'}`}
                   >
                     {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
                       <option key={year} value={year}>
@@ -1026,39 +1065,64 @@ const Calendar = () => {
 
               {/* Selected Date Header */}
               {isValidDate && selectedDateObject && (
-                <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'} pb-4 mb-4 border-b`}>
-                  <CalendarIcon className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-primary`} />
-                  <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'}`}>
-                    <div className={`text-center bg-primary/10 rounded-lg ${isMobile ? 'p-1.5 min-w-[50px]' : 'p-2 min-w-[60px]'}`}>
+                <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex items-center gap-3'} pb-4 mb-4 border-b`}>
+                  <div className={`flex items-center ${isMobile ? 'gap-3' : 'gap-3'}`}>
+                    <CalendarIcon className={`${isMobile ? 'w-5 h-5' : 'w-5 h-5'} text-primary`} />
+                    <div className={`text-center bg-primary/10 rounded-lg ${isMobile ? 'p-2 min-w-[60px]' : 'p-2 min-w-[60px]'}`}>
                       <div className={`${isMobile ? 'text-xs' : 'text-xs'} font-medium text-primary uppercase`}>
                         {selectedDateObject.toLocaleDateString('de-DE', { month: 'short' })}
                       </div>
-                      <div className={`${isMobile ? 'text-base' : 'text-lg'} font-bold text-primary`}>
+                      <div className={`${isMobile ? 'text-lg' : 'text-lg'} font-bold text-primary`}>
                         {selectedDateObject.getDate()}
                       </div>
                     </div>
-                    <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold text-foreground ${isMobile ? 'truncate' : ''}`}>
-                      {(() => {
-                        const today = new Date();
-                        const tomorrow = new Date(today.getTime() + 86400000);
-                        let dateLabel = selectedDateObject.toLocaleDateString('de-DE', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        });
-                        
-                        if (selectedListDate === formatDateLocal(today)) {
-                          dateLabel = `Heute, ${dateLabel}`;
-                        } else if (selectedListDate === formatDateLocal(tomorrow)) {
-                          dateLabel = `Morgen, ${dateLabel}`;
-                        }
-                        
-                        return dateLabel;
-                      })()} 
-                    </h3>
+                    <div className={`${isMobile ? 'flex-1' : ''}`}>
+                      <h3 className={`${isMobile ? 'text-lg' : 'text-lg'} font-semibold text-foreground`}>
+                        {(() => {
+                          const today = new Date();
+                          const tomorrow = new Date(today.getTime() + 86400000);
+                          
+                          if (isMobile) {
+                            // Mobile: Custom format without day number
+                            const weekday = selectedDateObject.toLocaleDateString('de-DE', { weekday: 'long' });
+                            const month = selectedDateObject.toLocaleDateString('de-DE', { month: 'long' });
+                            const year = selectedDateObject.getFullYear();
+                            
+                            let prefix = '';
+                            if (selectedListDate === formatDateLocal(today)) {
+                              prefix = 'Heute, ';
+                            } else if (selectedListDate === formatDateLocal(tomorrow)) {
+                              prefix = 'Morgen, ';
+                            }
+                            
+                            return `${prefix}${weekday}`;
+                          } else {
+                            // Desktop: Original format
+                            let dateLabel = selectedDateObject.toLocaleDateString('de-DE', { 
+                              weekday: 'long', 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric' 
+                            });
+                            
+                            if (selectedListDate === formatDateLocal(today)) {
+                              dateLabel = `Heute, ${dateLabel}`;
+                            } else if (selectedListDate === formatDateLocal(tomorrow)) {
+                              dateLabel = `Morgen, ${dateLabel}`;
+                            }
+                            
+                            return dateLabel;
+                          }
+                        })()} 
+                      </h3>
+                      {isMobile && (
+                        <div className="text-lg font-semibold text-foreground mt-1">
+                          {selectedDateObject.getDate()} {selectedDateObject.toLocaleDateString('de-DE', { month: 'long' })} {selectedDateObject.getFullYear()}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <Badge variant="secondary" className={`ml-auto ${isMobile ? 'text-xs' : ''}`}>
+                  <Badge variant="secondary" className={`${isMobile ? 'self-start text-xs' : 'ml-auto'}`}>
                     {eventsForSelectedDate.length} {eventsForSelectedDate.length === 1 ? 'Termin' : 'Termine'}
                   </Badge>
                 </div>
@@ -1074,9 +1138,9 @@ const Calendar = () => {
 
               {/* Events for Selected Date */}
                {isValidDate && eventsForSelectedDate.length > 0 ? (
-                 <div className={`${isMobile ? 'space-y-2' : 'space-y-3'}`}>
+                 <div className={`${isMobile ? 'space-y-3' : 'space-y-3'}`}>
                     {eventsForSelectedDate.map((event) => (
-                      <div key={event.id} className={`${isMobile ? 'flex flex-col gap-2 p-3' : 'flex items-center gap-4 p-3'} border rounded-lg hover:bg-accent/50 transition-colors ${event.status === 'completed' ? 'opacity-70 bg-muted/30' : ''}`}>
+                      <div key={event.id} className={`${isMobile ? 'flex flex-col gap-3 p-4' : 'flex items-center gap-4 p-3'} border rounded-lg hover:bg-accent/50 transition-colors ${event.status === 'completed' ? 'opacity-70 bg-muted/30' : ''} ${isMobile ? 'shadow-sm' : ''}`}>
                               {isMobile ? (
                                 /* Mobile Layout - Stacked */
                                 <>
@@ -1092,53 +1156,53 @@ const Calendar = () => {
                                       </div>
                                     </div>
                                     {/* Action Buttons */}
-                                    <div className="flex items-center gap-0.5">
+                                    <div className="flex items-center gap-1">
                                       <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => handleToggleComplete(event)}
-                                        className="h-6 w-6 p-0"
+                                        className="h-8 w-8 p-0 min-h-[44px] min-w-[44px]"
                                         title="Als erledigt markieren"
                                       >
-                                        <CheckCircle className="w-3 h-3" />
+                                        <CheckCircle className="w-4 h-4" />
                                       </Button>
                                       <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => handleEditEvent(event)}
-                                        className="h-6 w-6 p-0"
+                                        className="h-8 w-8 p-0 min-h-[44px] min-w-[44px]"
                                         title="Bearbeiten"
                                       >
-                                        <Edit className="w-3 h-3" />
+                                        <Edit className="w-4 h-4" />
                                       </Button>
                                       <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => handleDeleteEvent(event)}
-                                        className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                                        className="h-8 w-8 p-0 text-destructive hover:text-destructive min-h-[44px] min-w-[44px]"
                                         title="Löschen"
                                       >
-                                        <Trash2 className="w-3 h-3" />
+                                        <Trash2 className="w-4 h-4" />
                                       </Button>
                                     </div>
                                   </div>
                                   
                                   {/* Title */}
-                                  <h4 className={`text-sm font-medium text-foreground ${event.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>{event.title}</h4>
+                                  <h4 className={`text-base font-medium text-foreground leading-relaxed ${event.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>{event.title}</h4>
                                   
                                   {/* Badges */}
-                                  <div className="flex items-center gap-1 flex-wrap">
-                                    <Badge variant={getEventTypeColor(event.type, event.priority) as any} className="text-xs px-1.5 py-0.5">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Badge variant={getEventTypeColor(event.type, event.priority) as any} className="text-xs px-2 py-1">
                                       {event.type === "homework" ? "Hausaufgabe" : "Aufgabe"}
                                     </Badge>
-                                    <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                                    <Badge variant="outline" className="text-xs px-2 py-1">
                                       {event.subject_name}
                                     </Badge>
                                   </div>
                                   
                                   {/* Description */}
                                   {event.description && (
-                                    <p className="text-xs text-muted-foreground line-clamp-2">{event.description}</p>
+                                    <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">{event.description}</p>
                                   )}
                                 </>
                               ) : (
