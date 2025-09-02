@@ -1,16 +1,16 @@
 {
   "functions": {
     "api/generate-practice-questions.js": {
-      "runtime": "nodejs18.x"
+      "runtime": "nodejs20.x"
     },
     "api/groq-chat.js": {
-      "runtime": "nodejs18.x"
+      "runtime": "nodejs20.x"
     },
     "api/groq-facts.js": {
-      "runtime": "nodejs18.x"
+      "runtime": "nodejs20.x"
     },
     "api/notes/smartify.js": {
-      "runtime": "nodejs18.x"
+      "runtime": "nodejs20.x"
     }
   },
   "rewrites": [
