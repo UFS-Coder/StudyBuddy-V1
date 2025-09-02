@@ -30,7 +30,8 @@ import {
   Download,
   RefreshCw,
   Globe,
-  Languages
+  Languages,
+  GraduationCap
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +43,8 @@ import { Tables } from '@/integrations/supabase/types';
 // import { SyllabusMilestones } from './syllabus-milestones';
 import { format, isAfter, isBefore, addDays } from 'date-fns';
 import { groqAPI, GroqMessage } from '@/lib/groq-api';
+import { useAuth } from '@/hooks/use-auth';
+import { useProfile } from '@/hooks/use-profile';
 
 type SyllabusTopic = Tables<'syllabus_topics'>;
 type Subtopic = Tables<'subtopics'>;
@@ -84,6 +87,8 @@ interface CurriculumStats {
 }
 
 export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardProps) {
+  const { user } = useAuth();
+  const { data: profile } = useProfile();
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [topics, setTopics] = useState<SyllabusTopic[]>([]);
   const [subtopics, setSubtopics] = useState<Subtopic[]>([]);
@@ -127,6 +132,43 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
   const [aiNotesSearch, setAiNotesSearch] = useState('');
   const englishContentRef = useRef<HTMLDivElement | null>(null);
   const germanContentRef = useRef<HTMLDivElement | null>(null);
+  
+  // Practice modal state
+  const [showPracticeModal, setShowPracticeModal] = useState(false);
+
+  // Disable body scroll when practice modal is open
+  useEffect(() => {
+    if (showPracticeModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showPracticeModal]);
+
+  // Disable body scroll when AI notes modal is open
+  useEffect(() => {
+    if (showAiNotesOverlay) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showAiNotesOverlay]);
+  const [practiceLoading, setPracticeLoading] = useState(false);
+  const [practiceQuestions, setPracticeQuestions] = useState<any[]>([]);
+  const [practiceSubtopicInfo, setPracticeSubtopicInfo] = useState<{subjectId: string, topicId: string, subtopicId: string, subtopicTitle: string, topicTitle: string} | null>(null);
+  const [practiceAnswers, setPracticeAnswers] = useState<{[key: number]: string}>({});
+  const [practiceSubmitted, setPracticeSubmitted] = useState(false);
+  const [practiceScore, setPracticeScore] = useState<{correct: number; total: number} | null>(null);
 
   // Fetch notes for overlay functionality
   const { data: notes = [] } = useQuery({
@@ -581,6 +623,122 @@ Make the notes:
     }
   };
 
+  const handlePracticeClick = async (topicId: string, subtopicId: string, subtopicTitle: string, topicTitle: string) => {
+    if (!user || !profile) {
+      toast({
+        title: 'Error',
+        description: 'Please log in to access practice questions.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Set practice modal info and show modal
+    setPracticeSubtopicInfo({ 
+      subjectId, 
+      topicId, 
+      subtopicId, 
+      subtopicTitle, 
+      topicTitle 
+    });
+    setShowPracticeModal(true);
+    setPracticeLoading(true);
+    
+    try {
+      // Get grade band from profile with fallback
+      const gradeBand = profile.grade_level ? `Gymnasium Klasse ${profile.grade_level}` : 'Gymnasium 9–13';
+      
+      // Generate practice questions
+      const response = await fetch('/api/generate-practice-questions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topic: topicTitle,
+          subtopic: subtopicTitle,
+          gradeBand,
+          questionCount: 10,
+          language: 'de-DE'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate practice questions');
+      }
+
+      const questions = await response.json();
+      setPracticeQuestions(questions);
+      
+    } catch (error) {
+      console.error('Error generating practice questions:', error);
+      toast({
+        title: 'Error',
+        description: 'Die Fragen konnten nicht erstellt werden. Bitte erneut versuchen.',
+        variant: 'destructive',
+      });
+      setShowPracticeModal(false);
+    } finally {
+      setPracticeLoading(false);
+    }
+  };
+
+  const handleAnswerChange = (questionIndex: number, answer: string) => {
+    setPracticeAnswers(prev => ({
+      ...prev,
+      [questionIndex]: answer
+    }));
+  };
+
+  const handlePracticeSubmit = () => {
+    if (!practiceQuestions || practiceQuestions.length === 0) return;
+
+    let correctCount = 0;
+    const totalQuestions = practiceQuestions.length;
+
+    practiceQuestions.forEach((question, index) => {
+      const userAnswer = practiceAnswers[index];
+      const correctAnswer = question.correct_answer;
+
+      if (userAnswer && correctAnswer) {
+        // Normalize answers for comparison
+        const normalizedUserAnswer = userAnswer.toLowerCase().trim();
+        const normalizedCorrectAnswer = correctAnswer.toLowerCase().trim();
+        
+        if (question.type === 'true_false') {
+          // Handle true/false questions
+          const isCorrect = (
+            (normalizedUserAnswer === 'true' && (normalizedCorrectAnswer === 'true' || normalizedCorrectAnswer === 'richtig')) ||
+            (normalizedUserAnswer === 'false' && (normalizedCorrectAnswer === 'false' || normalizedCorrectAnswer === 'falsch'))
+          );
+          if (isCorrect) correctCount++;
+        } else {
+          // Handle other question types with exact or partial matching
+          if (normalizedUserAnswer === normalizedCorrectAnswer || 
+              normalizedCorrectAnswer.includes(normalizedUserAnswer) ||
+              normalizedUserAnswer.includes(normalizedCorrectAnswer)) {
+            correctCount++;
+          }
+        }
+      }
+    });
+
+    setPracticeScore({ correct: correctCount, total: totalQuestions });
+    setPracticeSubmitted(true);
+
+    toast({
+      title: 'Übung abgeschlossen',
+      description: `Sie haben ${correctCount} von ${totalQuestions} Fragen richtig beantwortet.`,
+    });
+  };
+
+  const resetPracticeModal = () => {
+    setPracticeAnswers({});
+    setPracticeSubmitted(false);
+    setPracticeScore(null);
+    setPracticeQuestions([]);
+  };
+
   useEffect(() => {
     calculateStats();
   }, [topics, subtopics, /* objectives, */ resources, /* milestones */]);
@@ -935,6 +1093,23 @@ Make the notes:
                                                 variant="outline"
                                                 size="sm"
                                                 className="flex items-center gap-2"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handlePracticeClick(topic.id, subtopic.id, subtopic.title, topic.title);
+                                                }}
+                                                disabled={practiceLoading}
+                                              >
+                                                {practiceLoading ? (
+                                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                                ) : (
+                                                  <GraduationCap className="h-3 w-3" />
+                                                )}
+                                                Practice
+                                              </Button>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex items-center gap-2"
                                                 onClick={() => {
                                                   // TODO: Implement attachments functionality
                                                   toast({
@@ -1086,6 +1261,23 @@ Make the notes:
                                               <Brain className="h-3 w-3" />
                                             )}
                                             AI Notes
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center gap-2"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handlePracticeClick(topic.id, subtopic.id, subtopic.title, topic.title);
+                                            }}
+                                            disabled={practiceLoading}
+                                          >
+                                            {practiceLoading ? (
+                                              <Loader2 className="h-3 w-3 animate-spin" />
+                                            ) : (
+                                              <GraduationCap className="h-3 w-3" />
+                                            )}
+                                            Practice
                                           </Button>
                                           <Button
                                             variant="outline"
@@ -1449,6 +1641,237 @@ Make the notes:
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Practice Modal */}
+      {showPracticeModal && practiceSubtopicInfo && (
+        <div className="fixed inset-0 z-50">
+          <div className="h-full w-full bg-white flex flex-col">
+            {/* Header */}
+            <div className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
+              <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <GraduationCap className="h-6 w-6 text-green-600" />
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 truncate">{practiceSubtopicInfo.subtopicTitle}</div>
+                    <div className="text-xs text-gray-500 truncate">{practiceSubtopicInfo.topicTitle}</div>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setShowPracticeModal(false)}>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-4xl mx-auto px-6 pb-24">
+                {/* Intro Text */}
+                <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-green-800">
+                    10 Fragen basierend auf deinem Niveau ({profile?.grade_level ? `Gymnasium Klasse ${profile.grade_level}` : 'Gymnasium 9–13'})
+                  </p>
+                </div>
+
+                {/* Loading State */}
+                {practiceLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-green-600" />
+                      <p className="text-gray-600">Fragen werden erstellt…</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Questions */}
+                {!practiceLoading && practiceQuestions && practiceQuestions.length > 0 && (
+                  <div className="space-y-6">
+                    {practiceQuestions.map((question: any, index: number) => (
+                      <div key={index} className="p-6 border rounded-lg bg-white">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                            <span className="text-sm font-semibold text-green-700">{index + 1}</span>
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-medium text-gray-900 mb-3">{question.question}</h3>
+                            
+                            {/* Question Type Specific UI */}
+                             {question.type === 'mcq' && (
+                               <div className="space-y-2">
+                                 {question.options?.map((option: string, optIndex: number) => (
+                                   <label key={optIndex} className="flex items-center gap-2 cursor-pointer">
+                                     <input 
+                                       type="radio" 
+                                       name={`question-${index}`} 
+                                       value={option} 
+                                       checked={practiceAnswers[index] === option}
+                                       onChange={(e) => handleAnswerChange(index, e.target.value)}
+                                       disabled={practiceSubmitted}
+                                       className="text-green-600" 
+                                     />
+                                     <span className={`text-gray-700 ${
+                                       practiceSubmitted && option === question.correct_answer 
+                                         ? 'font-semibold text-green-600' 
+                                         : practiceSubmitted && practiceAnswers[index] === option && option !== question.correct_answer
+                                         ? 'text-red-600'
+                                         : ''
+                                     }`}>{option}</span>
+                                   </label>
+                                 ))}
+                               </div>
+                             )}
+                             
+                             {question.type === 'true_false' && (
+                               <div className="space-y-2">
+                                 <label className="flex items-center gap-2 cursor-pointer">
+                                   <input 
+                                     type="radio" 
+                                     name={`question-${index}`} 
+                                     value="true" 
+                                     checked={practiceAnswers[index] === 'true'}
+                                     onChange={(e) => handleAnswerChange(index, e.target.value)}
+                                     disabled={practiceSubmitted}
+                                     className="text-green-600" 
+                                   />
+                                   <span className={`text-gray-700 ${
+                                     practiceSubmitted && (question.correct_answer?.toLowerCase() === 'true' || question.correct_answer?.toLowerCase() === 'richtig')
+                                       ? 'font-semibold text-green-600' 
+                                       : practiceSubmitted && practiceAnswers[index] === 'true' && !(question.correct_answer?.toLowerCase() === 'true' || question.correct_answer?.toLowerCase() === 'richtig')
+                                       ? 'text-red-600'
+                                       : ''
+                                   }`}>Richtig</span>
+                                 </label>
+                                 <label className="flex items-center gap-2 cursor-pointer">
+                                   <input 
+                                     type="radio" 
+                                     name={`question-${index}`} 
+                                     value="false" 
+                                     checked={practiceAnswers[index] === 'false'}
+                                     onChange={(e) => handleAnswerChange(index, e.target.value)}
+                                     disabled={practiceSubmitted}
+                                     className="text-green-600" 
+                                   />
+                                   <span className={`text-gray-700 ${
+                                     practiceSubmitted && (question.correct_answer?.toLowerCase() === 'false' || question.correct_answer?.toLowerCase() === 'falsch')
+                                       ? 'font-semibold text-green-600' 
+                                       : practiceSubmitted && practiceAnswers[index] === 'false' && !(question.correct_answer?.toLowerCase() === 'false' || question.correct_answer?.toLowerCase() === 'falsch')
+                                       ? 'text-red-600'
+                                       : ''
+                                   }`}>Falsch</span>
+                                 </label>
+                               </div>
+                             )}
+                             
+                             {(question.type === 'fill_blank' || question.type === 'short_answer') && (
+                               <input
+                                 type="text"
+                                 placeholder="Ihre Antwort..."
+                                 value={practiceAnswers[index] || ''}
+                                 onChange={(e) => handleAnswerChange(index, e.target.value)}
+                                 disabled={practiceSubmitted}
+                                 className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
+                                   practiceSubmitted 
+                                     ? practiceAnswers[index]?.toLowerCase().trim() === question.correct_answer?.toLowerCase().trim()
+                                       ? 'border-green-500 bg-green-50'
+                                       : 'border-red-500 bg-red-50'
+                                     : ''
+                                 }`}
+                               />
+                             )}
+                             
+                             {/* Show correct answer after submission */}
+                             {practiceSubmitted && (
+                               <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                                 <div className="text-sm">
+                                   <span className="font-medium text-gray-700">Richtige Antwort: </span>
+                                   <span className="text-green-600 font-medium">{question.correct_answer}</span>
+                                 </div>
+                                 {question.explanation && (
+                                   <div className="text-sm text-gray-600 mt-1">
+                                     <span className="font-medium">Erklärung: </span>
+                                     {question.explanation}
+                                   </div>
+                                 )}
+                               </div>
+                             )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t bg-white p-4 pb-20">
+              <div className="max-w-4xl mx-auto">
+                {/* Show score after submission */}
+                 {practiceSubmitted && (
+                   <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                     <div className="text-center">
+                       <div className="text-2xl font-bold text-green-600 mb-1">
+                         {practiceScore.correct}/{practiceScore.total} Punkte
+                       </div>
+                       <div className="text-sm text-gray-600">
+                         {practiceScore.correct >= 8 ? 'Ausgezeichnet!' : practiceScore.correct >= 6 ? 'Gut gemacht!' : 'Weiter üben!'}
+                       </div>
+                     </div>
+                   </div>
+                 )}
+                
+                <div className="flex justify-between">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      resetPracticeModal();
+                      setShowPracticeModal(false);
+                    }}
+                  >
+                    {practiceSubmitted ? 'Schließen' : 'Abbrechen'}
+                  </Button>
+                  
+                  <div className="flex gap-3">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        // Regenerate questions
+                        if (practiceSubtopicInfo) {
+                          resetPracticeModal();
+                          handlePracticeClick(
+                            practiceSubtopicInfo.topicId,
+                            practiceSubtopicInfo.subtopicId,
+                            practiceSubtopicInfo.subtopicTitle,
+                            practiceSubtopicInfo.topicTitle
+                          );
+                        }
+                      }}
+                      disabled={practiceLoading}
+                    >
+                      {practiceLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          Wird erstellt...
+                        </>
+                      ) : (
+                        'Neu erzeugen'
+                      )}
+                    </Button>
+                    
+                    {!practiceSubmitted && (
+                      <Button 
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={handlePracticeSubmit}
+                      >
+                        Absenden
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

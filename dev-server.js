@@ -15,6 +15,7 @@ app.use(express.json());
 // Import the API handlers
 import groqFactsHandler from './api/groq-facts.js';
 import groqChatHandler from './api/groq-chat.js';
+import generatePracticeQuestionsHandler from './api/generate-practice-questions.js';
 
 // Convert Vercel handler to Express middleware
 app.post('/api/groq-facts', async (req, res) => {
@@ -70,6 +71,35 @@ app.post('/api/groq/chat/completions', async (req, res) => {
     await groqChatHandler(mockReq, mockRes);
   } catch (error) {
     console.error('Groq Chat API Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add generate practice questions endpoint
+app.post('/api/generate-practice-questions', async (req, res) => {
+  // Create a mock Vercel-like req/res object
+  const mockReq = {
+    method: req.method,
+    body: req.body,
+    headers: req.headers
+  };
+  
+  const mockRes = {
+    setHeader: (key, value) => res.setHeader(key, value),
+    status: (code) => {
+      res.status(code);
+      return {
+        json: (data) => res.json(data),
+        end: () => res.end()
+      };
+    },
+    json: (data) => res.json(data)
+  };
+  
+  try {
+    await generatePracticeQuestionsHandler(mockReq, mockRes);
+  } catch (error) {
+    console.error('Generate Practice Questions API Error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
