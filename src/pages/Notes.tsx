@@ -28,6 +28,7 @@ interface Note {
   subject_id: string | null;
   topic_id: string | null;
   subtopic_id: string | null;
+  tags?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +58,145 @@ const Notes = () => {
   });
 
   const studentName = profile?.display_name || user?.email?.split("@")[0] || "Student";
+
+  // Helper function to format AI notes content
+  const formatAiNotesContent = (content: string): string => {
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed.english || parsed.german) {
+        // This is AI notes content
+        const englishContent = parsed.english || '';
+        const germanContent = parsed.german || '';
+        const youtubeVideo = parsed.youtube_video || '';
+        
+        const formatContent = (text: string) => {
+          return text
+            .replace(/,\s*$/g, '') // Remove trailing commas
+            .replace(/"\s*$/g, '') // Remove trailing quotes
+            .replace(/^\s*"/g, '') // Remove leading quotes
+            .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600; color: #1f2937;">$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em style="font-style: italic; color: #4b5563;">$1</em>')
+            .replace(/\n\n/g, '</p><p style="margin-bottom: 1rem; line-height: 1.7;">')
+            .replace(/\n/g, '<br>')
+            .replace(/^/, '<p style="margin-bottom: 1rem; line-height: 1.7;">')
+            .replace(/$/, '</p>');
+        };
+        
+        const formatYouTubeVideo = (video: any) => {
+          if (!video) return '';
+          
+          let videoId = null;
+          let title = 'Educational Video';
+          
+          // Handle both old string format and new object format
+          if (typeof video === 'string') {
+            // Legacy string format: "URL - Title"
+            const cleanText = video.replace(/`/g, '').trim();
+            const urlMatch = cleanText.match(/https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
+            videoId = urlMatch ? urlMatch[1] : null;
+            
+            if (cleanText.includes(' - ')) {
+              const parts = cleanText.split(' - ');
+              if (parts.length > 1) {
+                title = parts.slice(1).join(' - ').trim();
+              }
+            }
+          } else if (video && typeof video === 'object') {
+            // New object format: {url: "...", title: "..."}
+            const url = video.url || '';
+            title = video.title || 'Educational Video';
+            
+            const urlMatch = url.match(/https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
+            videoId = urlMatch ? urlMatch[1] : null;
+          }
+          
+          if (videoId) {
+            return `
+              <div style="margin-top: 2rem; padding: 1.5rem; background: linear-gradient(to right, #fef2f2, #fee2e2); border-radius: 0.5rem; border: 1px solid #fecaca;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                  <div style="width: 2rem; height: 2rem; background: #dc2626; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
+                    <svg style="width: 1.25rem; height: 1.25rem; color: white;" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 style="font-size: 1.125rem; font-weight: 600; color: #1f2937; margin: 0;">Recommended Video</h3>
+                    <p style="font-size: 0.875rem; color: #6b7280; margin: 0;">Watch this video to learn more about this topic</p>
+                  </div>
+                </div>
+                <div style="background: white; border-radius: 0.5rem; padding: 1rem; border: 1px solid #fecaca;">
+                  <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; background: #f3f4f6; border-radius: 0.5rem; overflow: hidden;">
+                    <iframe
+                      src="https://www.youtube.com/embed/${videoId}"
+                      title="${title}"
+                      style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowfullscreen
+                    ></iframe>
+                  </div>
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.75rem;">
+                    <p style="font-size: 0.875rem; font-weight: 500; color: #1f2937; margin: 0;">${title}</p>
+                    <a
+                      href="https://www.youtube.com/watch?v=${videoId}"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style="font-size: 0.875rem; color: #dc2626; font-weight: 500; text-decoration: underline; cursor: pointer;"
+                      onclick="window.open(this.href, '_blank'); return false;"
+                    >
+                      Watch on YouTube
+                    </a>
+                  </div>
+                </div>
+              </div>
+            `;
+          } else {
+            return `
+              <div style="margin-top: 2rem; padding: 1.5rem; background: linear-gradient(to right, #fef2f2, #fee2e2); border-radius: 0.5rem; border: 1px solid #fecaca;">
+                <div style="text-align: center; padding: 1rem;">
+                  <p style="color: #6b7280; margin-bottom: 0.75rem;">Video recommendation</p>
+                  <p style="font-size: 0.875rem; color: #9ca3af; margin: 0;">Video link not available</p>
+                </div>
+              </div>
+            `;
+          }
+        };
+        
+        return `
+          <div style="margin-bottom: 2rem;">
+            <h3 style="font-size: 1.125rem; font-weight: 600; margin: 1rem 0 0.5rem 0; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem;">English</h3>
+            <div style="margin-bottom: 1.5rem;">${formatContent(englishContent)}</div>
+          </div>
+          <div>
+            <h3 style="font-size: 1.125rem; font-weight: 600; margin: 1rem 0 0.5rem 0; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem;">Deutsch</h3>
+            <div>${formatContent(germanContent)}</div>
+          </div>
+          ${formatYouTubeVideo(youtubeVideo)}
+        `;
+      }
+    } catch (e) {
+      // Not JSON or not AI notes format, return as is
+    }
+    return content;
+  };
+
+  // Helper function to format AI notes content for preview (German only, no "AI notes:" prefix)
+  const formatAiNotesContentPreview = (content: string): string => {
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed.german) {
+        // Only show German content for preview
+        const germanContent = parsed.german || '';
+        
+        // Remove "AI notes:" prefix if it exists
+        const cleanedContent = germanContent.replace(/^AI notes:\s*/i, '');
+        
+        return cleanedContent;
+      }
+    } catch (error) {
+      // Not JSON or not AI notes format, return as is
+    }
+    return content;
+  };
 
 
 
@@ -125,6 +265,7 @@ const Notes = () => {
           subject_id: note.subject_id,
           topic_id: note.topic_id,
           subtopic_id: (note as any).subtopic_id || null,
+          tags: note.tags || [],
           created_at: note.created_at,
           updated_at: note.updated_at
         })) as Note[];
@@ -488,8 +629,24 @@ const Notes = () => {
                   <div className="flex-1 overflow-y-auto">
                     <div className="prose prose-lg max-w-none">
                       <div 
-                        className="text-lg leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: viewingNote.content }}
+                        className="text-base leading-relaxed space-y-4 p-4 bg-gray-50 rounded-lg border"
+                        style={{
+                          fontFamily: 'system-ui, -apple-system, sans-serif',
+                          lineHeight: '1.7',
+                          color: '#374151'
+                        }}
+                        dangerouslySetInnerHTML={{ 
+                          __html: formatAiNotesContent(viewingNote.content)
+                            .replace(/<p>/g, '<p style="margin-bottom: 1rem; line-height: 1.7;">')
+                            .replace(/<h1>/g, '<h1 style="font-size: 1.5rem; font-weight: 600; margin: 1.5rem 0 1rem 0; color: #1f2937;">')
+                            .replace(/<h2>/g, '<h2 style="font-size: 1.25rem; font-weight: 600; margin: 1.25rem 0 0.75rem 0; color: #1f2937;">')
+                            .replace(/<h3>/g, '<h3 style="font-size: 1.125rem; font-weight: 600; margin: 1rem 0 0.5rem 0; color: #1f2937;">')
+                            .replace(/<ul>/g, '<ul style="margin: 1rem 0; padding-left: 1.5rem; list-style-type: disc;">')
+                            .replace(/<ol>/g, '<ol style="margin: 1rem 0; padding-left: 1.5rem; list-style-type: decimal;">')
+                            .replace(/<li>/g, '<li style="margin-bottom: 0.5rem; line-height: 1.6;">')
+                            .replace(/<strong>/g, '<strong style="font-weight: 600; color: #1f2937;">')
+                            .replace(/<em>/g, '<em style="font-style: italic; color: #4b5563;">')
+                        }}
                       />
                     </div>
                   </div>
@@ -568,12 +725,19 @@ const Notes = () => {
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <CardTitle className="text-lg line-clamp-1">{note.title}</CardTitle>
+                        <CardTitle className="text-lg line-clamp-1">
+                          {note.title.replace(/^AI notes:\s*/i, '')}
+                        </CardTitle>
                         <div className="flex items-center gap-2 mt-2">
                           <Badge variant="secondary" className="text-xs">
                             <BookOpen className="w-3 h-3 mr-1" />
                             {subjectName}
                           </Badge>
+                          {note.tags && note.tags.includes('AI notes') && (
+                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                              AI notes
+                            </Badge>
+                          )}
                           <span className="text-xs text-muted-foreground">
                             {new Date(note.updated_at).toLocaleDateString('de-DE')}
                           </span>
@@ -614,7 +778,7 @@ const Notes = () => {
                   <CardContent>
                     <div 
                       className="text-sm text-muted-foreground line-clamp-3"
-                      dangerouslySetInnerHTML={{ __html: note.content }}
+                      dangerouslySetInnerHTML={{ __html: formatAiNotesContentPreview(note.content) }}
                     />
                   </CardContent>
                 </Card>
@@ -639,7 +803,7 @@ const Notes = () => {
       </div>
 
       
-      <BottomNavigation t={t} />
+      {!(isCreateDialogOpen || editingNote || viewingNote) && <BottomNavigation t={t} />}
     </div>
   );
 };

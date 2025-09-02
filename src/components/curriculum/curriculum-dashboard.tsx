@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,16 @@ import {
   FileText,
   Paperclip as AttachmentIcon,
   Plus,
-  Eye
+  Eye,
+  Brain,
+  Loader2,
+  X,
+  Search,
+  Copy,
+  Download,
+  RefreshCw,
+  Globe,
+  Languages
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -32,6 +41,7 @@ import { Tables } from '@/integrations/supabase/types';
 // import { ResourceAttachments } from './resource-attachments';
 // import { SyllabusMilestones } from './syllabus-milestones';
 import { format, isAfter, isBefore, addDays } from 'date-fns';
+import { groqAPI, GroqMessage } from '@/lib/groq-api';
 
 type SyllabusTopic = Tables<'syllabus_topics'>;
 type Subtopic = Tables<'subtopics'>;
@@ -49,6 +59,7 @@ interface Note {
   subject_id: string | null;
   topic_id: string | null;
   subtopic_id: string | null;
+  tags: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -105,6 +116,17 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
   const [showSubtopicOverlay, setShowSubtopicOverlay] = useState(false);
   const [subtopicNotes, setSubtopicNotes] = useState<Note[]>([]);
   const [overlaySubtopicInfo, setOverlaySubtopicInfo] = useState<{subjectId: string, topicId: string, subtopicId: string} | null>(null);
+  
+  // AI Notes state
+  const [aiNotesLoading, setAiNotesLoading] = useState<Set<string>>(new Set());
+  const [showAiNotesOverlay, setShowAiNotesOverlay] = useState(false);
+  const [aiNotesContent, setAiNotesContent] = useState<{english: any, german: any, youtube_video?: string | {url: string, title: string}} | null>(null);
+  const [aiNotesSubtopicInfo, setAiNotesSubtopicInfo] = useState<{subjectId: string, topicId: string, subtopicId: string, subtopicTitle: string} | null>(null);
+  // New: Modal UI state for redesigned AI Notes
+  const [aiNotesLang, setAiNotesLang] = useState<'english' | 'german'>('english');
+  const [aiNotesSearch, setAiNotesSearch] = useState('');
+  const englishContentRef = useRef<HTMLDivElement | null>(null);
+  const germanContentRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch notes for overlay functionality
   const { data: notes = [] } = useQuery({
@@ -190,6 +212,372 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
   const handleCreateNote = () => {
     if (overlaySubtopicInfo) {
       navigate(`/notes?subject_id=${overlaySubtopicInfo.subjectId}&topic_id=${overlaySubtopicInfo.topicId}&subtopic_id=${overlaySubtopicInfo.subtopicId}`);
+    }
+  };
+
+  const generateAiNotes = async (subtopicTitle: string, topicTitle?: string) => {
+    const messages: GroqMessage[] = [
+      {
+        role: 'system',
+        content: `You are a friendly teacher who explains things in simple ways. Create easy-to-understand study notes about the given topic.
+
+Provide your response in the following JSON format:
+{
+  "english": "Simple notes in English with easy words, fun examples, and important points",
+  "german": "Simple notes in German with easy words, fun examples, and important points",
+  "youtube_video": {
+    "url": "https://www.youtube.com/watch?v=VIDEO_ID",
+    "title": "A recommended educational YouTube video title that helps explain this topic"
+  }
+}
+
+Make the notes:
+- Easy to read and understand
+- Use simple words (avoid overly complicated terminology)
+- Break information into small, clear sections
+- Include fun examples that students can relate to
+- Use bullet points to make it easy to follow
+- Explain things step by step
+- Connect new ideas to things students already know
+- Make learning fun and interesting
+- Include a relevant educational YouTube video recommendation with a real video URL and descriptive title`
+      },
+      {
+        role: 'user',
+        content: `Create fun and easy study notes about: "${subtopicTitle}"${topicTitle ? `\n\nThis topic is part of a bigger subject called "${topicTitle}". Please explain how this topic connects to the bigger subject and show how it relates to other things students might already know.` : ''}\n\nMake sure the notes are easy to read and understand. Use simple words and fun examples that students can relate to! Also include a recommended educational YouTube video that would help explain this topic.`
+      }
+    ];
+
+    const response = await groqAPI.chatCompletion(messages, {}, 'student', `Generating study notes for ${subtopicTitle}`);
+     const content = response.choices[0]?.message?.content || '';
+    
+    try {
+       const parsedResponse = JSON.parse(content);
+       if (parsedResponse.english && parsedResponse.german) {
+         return parsedResponse;
+       } else {
+         throw new Error('Invalid response format');
+       }
+     } catch (parseError) {
+       console.error('Failed to parse AI response as JSON:', parseError);
+       console.log('Raw AI response:', content);
+       
+       // Try to extract JSON from the response if it's wrapped in markdown or other text
+       const jsonMatch = content.match(/\{[\s\S]*\}/);
+       if (jsonMatch) {
+         try {
+           const extractedJson = JSON.parse(jsonMatch[0]);
+           if (extractedJson.english && extractedJson.german) {
+             return extractedJson;
+           }
+         } catch (extractError) {
+           console.error('Failed to parse extracted JSON:', extractError);
+         }
+       }
+       
+       // Enhanced fallback: better content separation
+       let englishContent = content;
+       let germanContent = null;
+       
+       // Try to split by various German indicators
+       const germanIndicators = ['German:', 'Deutsch:', '"german":', 'GERMAN:', 'German Translation:'];
+       
+       for (const indicator of germanIndicators) {
+         if (content.includes(indicator)) {
+           const parts = content.split(indicator);
+           englishContent = parts[0]
+             .replace(/English:/i, '')
+             .replace(/\{\s*"english":\s*"/g, '')
+             .replace(/No Italics in formatting/g, '')
+             .replace(/Reduce the modal size by removing outline/g, '')
+             .replace(/Text below "/g, '')
+             .trim();
+           
+           germanContent = parts[1] ? parts[1]
+             .replace(/should move to Deutsch section where it is throwing error - German translation not available\./g, '')
+             .replace(/Please try regenerating the notes\./g, '')
+             .replace(/\}\s*$/g, '')
+             .replace(/"\s*$/g, '')
+             .trim() : null;
+           break;
+         }
+       }
+       
+       // Clean up any remaining JSON artifacts
+       if (englishContent.startsWith('"') && englishContent.endsWith('"')) {
+         englishContent = englishContent.slice(1, -1);
+       }
+       
+       if (germanContent && germanContent.startsWith('"') && germanContent.endsWith('"')) {
+         germanContent = germanContent.slice(1, -1);
+       }
+       
+       return {
+         english: englishContent || content,
+         german: germanContent
+       };
+     }
+  };
+
+  // Helper function to render structured AI notes content
+  const renderAiNotesContent = (content: any, options?: { anchorPrefix?: string }) => {
+    // Handle null, undefined, or empty content
+    if (!content) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-gray-500 mb-4">German translation not available.</p>
+          <p className="text-sm text-gray-400">Please try regenerating the notes.</p>
+        </div>
+      );
+    }
+    
+    if (typeof content === 'string') {
+      // Handle plain text content - Remove formatting instructions and clean up
+      const cleanContent = content
+        .replace(/\{\s*"english":\s*"/g, '')
+        .replace(/\{\s*"german":\s*"/g, '')
+        .replace(/No Italics in formatting/g, '')
+        .replace(/Reduce the modal size by removing outline/g, '')
+        .replace(/Text below "/g, '')
+        .replace(/should move to Deutsch section where it is throwing error - German translation not available\./g, '')
+        .replace(/Please try regenerating the notes\./g, '')
+        .trim();
+      
+      return (
+        <div className="prose prose-lg max-w-none leading-relaxed">
+          <div 
+            className="text-gray-700 space-y-4"
+            dangerouslySetInnerHTML={{ 
+              __html: cleanContent
+                .replace(/\n\n/g, '</p><p class="mb-4">')
+                .replace(/\n/g, '<br>')
+                .replace(/^/, '<p class="mb-4">')
+                .replace(/$/, '</p>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+            }} 
+          />
+        </div>
+      );
+    }
+    
+    if (Array.isArray(content)) {
+      // Handle array of structured content
+      return (
+        <div className="space-y-6">
+          {content.map((section: any, index: number) => (
+            <div id={options?.anchorPrefix ? `${options.anchorPrefix}-section-${index}` : undefined} key={index} className="bg-gray-50 rounded-lg p-4">
+              {section.title && (
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">{section.title}</h3>
+              )}
+              {section.text && (
+                <p className="text-gray-700 mb-3 leading-relaxed">{section.text}</p>
+              )}
+              {section.stages && (
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-800">Stages:</h4>
+                  <div className="grid gap-3">
+                    {section.stages.map((stage: any, stageIndex: number) => (
+                      <div key={stageIndex} className="bg-white border rounded p-3">
+                        <div className="font-medium text-gray-900">{stage.name || `Stage ${stageIndex + 1}`}</div>
+                        {stage.description && (
+                          <p className="text-gray-700 text-sm mt-1">{stage.description}</p>
+                        )}
+                        {stage.key_points && Array.isArray(stage.key_points) && (
+                          <ul className="list-disc pl-5 mt-2 space-y-1">
+                            {stage.key_points.map((point: string, i: number) => (
+                              <li key={i} className="text-gray-700 text-sm">{point}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {section.importance && Array.isArray(section.importance) && (
+                <div className="mt-3">
+                  <h4 className="font-medium text-gray-800">Why it matters:</h4>
+                  <ul className="list-disc pl-5 mt-1 space-y-1">
+                    {section.importance.map((item: string, i: number) => (
+                      <li key={i} className="text-gray-700">{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {section.related_concepts && Array.isArray(section.related_concepts) && (
+                <div className="mt-3">
+                  <h4 className="font-medium text-gray-800">Related concepts:</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {section.related_concepts.map((concept: string, i: number) => (
+                      <span key={i} className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-sm">{concept}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    
+    // Fallback for unknown content structure
+    return (
+      <pre className="bg-gray-100 text-gray-800 p-4 rounded-lg overflow-auto text-sm">
+        {JSON.stringify(content, null, 2)}
+      </pre>
+    );
+  };
+
+
+
+  // Format content for copy/download
+  const formatAiNotesContentForCopy = (content: any): string => {
+    if (!content) return '';
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      const parts: string[] = [];
+      content.forEach((section: any, idx: number) => {
+        if (section.title) parts.push(`# ${section.title}`);
+        if (section.text) parts.push(section.text);
+        if (section.stages && Array.isArray(section.stages)) {
+          parts.push('## Stages');
+          section.stages.forEach((stage: any, i: number) => {
+            parts.push(`- ${stage.name || `Stage ${i + 1}`}: ${stage.description || ''}`.trim());
+            if (stage.key_points) {
+              stage.key_points.forEach((p: string) => parts.push(`  • ${p}`));
+            }
+          });
+        }
+        if (section.importance) {
+          parts.push('## Why it matters');
+          section.importance.forEach((p: string) => parts.push(`- ${p}`));
+        }
+        if (section.related_concepts) {
+          parts.push('## Related concepts');
+          parts.push(section.related_concepts.map((c: string) => `#${c}`).join(' '));
+        }
+        if (idx < content.length - 1) parts.push('\n');
+      });
+      return parts.join('\n');
+    }
+    return JSON.stringify(content, null, 2);
+  };
+
+  const downloadStringAsFile = (text: string, fileName: string) => {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleAiNotesSearch = () => {
+    const term = aiNotesSearch.trim().toLowerCase();
+    if (!term) return;
+    const container = aiNotesLang === 'english' ? englishContentRef.current : germanContentRef.current;
+    if (!container) return;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let node: Node | null = walker.nextNode();
+    while (node) {
+      const text = node.textContent || '';
+      if (text.toLowerCase().includes(term)) {
+        const el = node.parentElement as HTMLElement | null;
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        break;
+      }
+      node = walker.nextNode();
+    }
+  };
+  const handleAiNotesClick = async (topicId: string, subtopicId: string, subtopicTitle: string) => {
+    const loadingKey = `${topicId}-${subtopicId}`;
+    
+    // Check if AI notes already exist for this subtopic
+    const existingAiNotes = notes.filter(note => {
+      const matchesSubject = note.subject_id === subjectId;
+      const matchesTopic = note.topic_id === topicId;
+      const matchesSubtopic = note.subtopic_id === subtopicId;
+      const isAiNote = note.tags && note.tags.includes('AI notes');
+      return matchesSubject && matchesTopic && matchesSubtopic && isAiNote;
+    });
+    
+    if (existingAiNotes.length > 0) {
+      // Show existing AI notes
+      const aiNote = existingAiNotes[0];
+      try {
+        const content = JSON.parse(aiNote.content);
+        setAiNotesContent(content);
+        setAiNotesSubtopicInfo({ subjectId, topicId, subtopicId, subtopicTitle });
+        setShowAiNotesOverlay(true);
+      } catch (error) {
+        console.error('Error parsing AI notes content:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load existing AI notes',
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
+    
+    // Generate new AI notes
+    setAiNotesLoading(prev => {
+      const newSet = new Set(prev);
+      newSet.add(loadingKey);
+      return newSet;
+    });
+    
+    try {
+      // Get topic title for context
+      const topic = topics.find(t => t.id === topicId);
+      const topicTitle = topic?.title;
+      
+      // Generate AI notes
+      const aiNotesContent = await generateAiNotes(subtopicTitle, topicTitle);
+      
+      // Save AI notes to database
+      const { error: insertError } = await supabase
+        .from('notes')
+        .insert({
+          title: `AI Notes: ${subtopicTitle}`,
+          content: JSON.stringify(aiNotesContent),
+          time_period: 'day',
+          subject_id: subjectId,
+          topic_id: topicId,
+          subtopic_id: subtopicId,
+          tags: ['AI notes'],
+          user_id: userId
+        });
+      
+      if (insertError) {
+        throw insertError;
+      }
+      
+      // Show the generated notes
+      setAiNotesContent(aiNotesContent);
+      setAiNotesSubtopicInfo({ subjectId, topicId, subtopicId, subtopicTitle });
+      setShowAiNotesOverlay(true);
+      
+      toast({
+        title: 'AI Notes Generated',
+        description: 'AI notes have been generated and saved successfully.',
+      });
+    } catch (error) {
+      console.error('Error generating AI notes:', error);
+      toast({
+        title: 'Error',
+        description: 'Notes could not be generated. Please try again later.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAiNotesLoading(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(loadingKey);
+        return newSet;
+      });
     }
   };
 
@@ -530,6 +918,23 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
                                                 variant="outline"
                                                 size="sm"
                                                 className="flex items-center gap-2"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleAiNotesClick(topic.id, subtopic.id, subtopic.title);
+                                                }}
+                                                disabled={aiNotesLoading.has(`${topic.id}-${subtopic.id}`)}
+                                              >
+                                                {aiNotesLoading.has(`${topic.id}-${subtopic.id}`) ? (
+                                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                                ) : (
+                                                  <Brain className="h-3 w-3" />
+                                                )}
+                                                AI Notes
+                                              </Button>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex items-center gap-2"
                                                 onClick={() => {
                                                   // TODO: Implement attachments functionality
                                                   toast({
@@ -664,6 +1069,23 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
                                           >
                                             <FileText className="h-3 w-3" />
                                             Notes
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center gap-2"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleAiNotesClick(topic.id, subtopic.id, subtopic.title);
+                                            }}
+                                            disabled={aiNotesLoading.has(`${topic.id}-${subtopic.id}`)}
+                                          >
+                                            {aiNotesLoading.has(`${topic.id}-${subtopic.id}`) ? (
+                                              <Loader2 className="h-3 w-3 animate-spin" />
+                                            ) : (
+                                              <Brain className="h-3 w-3" />
+                                            )}
+                                            AI Notes
                                           </Button>
                                           <Button
                                             variant="outline"
@@ -822,6 +1244,213 @@ export function CurriculumDashboard({ subjectId, userId }: CurriculumDashboardPr
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      
+      {/* AI Notes Overlay */}
+      {showAiNotesOverlay && aiNotesContent && aiNotesSubtopicInfo && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50">
+          <div className="h-full w-full bg-white flex flex-col">
+            {/* Sticky Header with Toolbar */}
+            <div className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
+              <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Brain className="h-6 w-6 text-blue-600" />
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 truncate">AI Notes</div>
+                    <div className="text-xs text-gray-500 truncate">{aiNotesSubtopicInfo.subtopicTitle}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="hidden md:flex items-center gap-2 border rounded-lg px-3 py-1.5">
+                    <Search className="h-4 w-4 text-gray-500" />
+                    <input
+                      value={aiNotesSearch}
+                      onChange={(e) => setAiNotesSearch(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAiNotesSearch(); }}
+                      placeholder={aiNotesLang === 'english' ? 'Search in English notes…' : 'In deutschen Notizen suchen…'}
+                      className="outline-none text-sm placeholder:text-gray-400 w-56"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={async () => {
+                      const current = aiNotesLang === 'english' ? aiNotesContent.english : aiNotesContent.german;
+                      const text = formatAiNotesContentForCopy(current);
+                      try {
+                        await navigator.clipboard.writeText(text);
+                        toast({ title: 'Copied', description: 'AI notes copied to clipboard.' });
+                      } catch (err) {
+                        toast({ title: 'Copy failed', description: 'Could not copy to clipboard.', variant: 'destructive' });
+                      }
+                    }}
+                  >
+                    <Copy className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const current = aiNotesLang === 'english' ? aiNotesContent.english : aiNotesContent.german;
+                      const text = formatAiNotesContentForCopy(current);
+                      const langLabel = aiNotesLang === 'english' ? 'EN' : 'DE';
+                      downloadStringAsFile(text, `${aiNotesSubtopicInfo.subtopicTitle.replace(/\s+/g, '_')}_AI_Notes_${langLabel}.txt`);
+                    }}
+                  >
+                    <Download className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={aiNotesSubtopicInfo ? aiNotesLoading.has(`${aiNotesSubtopicInfo.topicId}-${aiNotesSubtopicInfo.subtopicId}`) : false}
+                    onClick={async () => {
+                      if (!aiNotesSubtopicInfo) return;
+                      const refreshLoadingKey = `${aiNotesSubtopicInfo.topicId}-${aiNotesSubtopicInfo.subtopicId}`;
+                      try {
+                        setAiNotesLoading(prev => { const s = new Set(prev); s.add(refreshLoadingKey); return s; });
+                        const topic = topics.find(t => t.id === aiNotesSubtopicInfo.topicId);
+                        const topicTitle = topic?.title;
+                        const newAiNotesContent = await generateAiNotes(aiNotesSubtopicInfo.subtopicTitle, topicTitle);
+                        const { error: updateError } = await supabase
+                          .from('notes')
+                          .update({ content: JSON.stringify(newAiNotesContent), updated_at: new Date().toISOString() })
+                          .eq('subject_id', aiNotesSubtopicInfo.subjectId)
+                          .eq('topic_id', aiNotesSubtopicInfo.topicId)
+                          .eq('subtopic_id', aiNotesSubtopicInfo.subtopicId)
+                          .eq('user_id', userId)
+                          .contains('tags', ['AI notes']);
+                        if (updateError) throw updateError;
+                        setAiNotesContent(newAiNotesContent);
+                        toast({ title: 'AI Notes Refreshed', description: 'New AI notes have been generated successfully.' });
+                      } catch (error) {
+                        console.error('Error refreshing AI notes:', error);
+                        toast({ title: 'Error', description: 'Failed to refresh AI notes. Please try again.', variant: 'destructive' });
+                      } finally {
+                        setAiNotesLoading(prev => { const s = new Set(prev); s.delete(`${aiNotesSubtopicInfo.topicId}-${aiNotesSubtopicInfo.subtopicId}`); return s; });
+                      }
+                    }}
+                  >
+                    <RefreshCw className="h-5 w-5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setShowAiNotesOverlay(false)}>
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
+              {/* Language Tabs */}
+              <div className="max-w-7xl mx-auto px-4 pb-3">
+                <div className="inline-flex rounded-lg border p-1 bg-white">
+                  <button
+                    onClick={() => setAiNotesLang('english')}
+                    className={`px-3 py-1.5 text-sm rounded-md flex items-center gap-2 ${aiNotesLang === 'english' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                  >
+                    <Globe className="h-4 w-4" /> English
+                  </button>
+                  <button
+                    onClick={() => setAiNotesLang('german')}
+                    className={`px-3 py-1.5 text-sm rounded-md flex items-center gap-2 ${aiNotesLang === 'german' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                  >
+                    <Languages className="h-4 w-4" /> Deutsch
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-4xl mx-auto p-6 pb-20">
+                {/* English content */}
+                <div ref={englishContentRef} className={aiNotesLang === 'english' ? 'block' : 'hidden'}>
+                  {renderAiNotesContent(aiNotesContent.english, { anchorPrefix: 'en' })}
+                </div>
+                {/* German content */}
+                <div ref={germanContentRef} className={aiNotesLang === 'german' ? 'block' : 'hidden'}>
+                  {renderAiNotesContent(aiNotesContent.german, { anchorPrefix: 'de' })}
+                </div>
+                
+                {/* YouTube Video Recommendation */}
+                {aiNotesContent.youtube_video && (
+                  <div className="mt-8 p-6 bg-gradient-to-r from-red-50 to-red-100 rounded-lg border border-red-200">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136C4.495 20.455 12 20.455 12 20.455s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {aiNotesLang === 'english' ? 'Recommended Video' : 'Empfohlenes Video'}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {aiNotesLang === 'english' ? 'Watch this video to learn more about this topic' : 'Schauen Sie sich dieses Video an, um mehr über dieses Thema zu erfahren'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-red-200">
+                      {(() => {
+                        const video = aiNotesContent.youtube_video;
+                        let videoId = null;
+                        let title = 'Educational Video';
+                        
+                        // Handle both old string format and new object format
+                        if (typeof video === 'string') {
+                          // Legacy string format: "URL - Title"
+                          const urlMatch = video.match(/https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
+                          videoId = urlMatch ? urlMatch[1] : null;
+                          title = video.split(' - ').slice(1).join(' - ').trim() || 'Educational Video';
+                        } else if (video && typeof video === 'object') {
+                          // New object format: {url: "...", title: "..."}
+                          const url = video.url || '';
+                          title = video.title || 'Educational Video';
+                          const urlMatch = url.match(/https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
+                          videoId = urlMatch ? urlMatch[1] : null;
+                        }
+                        
+                        if (videoId) {
+                          return (
+                            <div className="space-y-3">
+                              <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                                <iframe
+                                  src={`https://www.youtube.com/embed/${videoId}`}
+                                  title={title}
+                                  className="w-full h-full"
+                                  frameBorder="0"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                />
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-medium text-gray-900">{title}</p>
+                                <a
+                                  href={`https://www.youtube.com/watch?v=${videoId}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-red-600 hover:text-red-700 font-medium"
+                                >
+                                  {aiNotesLang === 'english' ? 'Watch on YouTube' : 'Auf YouTube ansehen'}
+                                </a>
+                              </div>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="text-center py-4">
+                              <p className="text-gray-600 mb-3">Video recommendation</p>
+                              <p className="text-sm text-gray-500">
+                                {aiNotesLang === 'english' ? 'Video link not available' : 'Video-Link nicht verfügbar'}
+                              </p>
+                            </div>
+                          );
+                        }
+                      })()
+                      }
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

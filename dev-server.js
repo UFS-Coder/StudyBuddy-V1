@@ -12,8 +12,9 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json());
 
-// Import the API handler
+// Import the API handlers
 import groqFactsHandler from './api/groq-facts.js';
+import groqChatHandler from './api/groq-chat.js';
 
 // Convert Vercel handler to Express middleware
 app.post('/api/groq-facts', async (req, res) => {
@@ -40,6 +41,35 @@ app.post('/api/groq-facts', async (req, res) => {
     await groqFactsHandler(mockReq, mockRes);
   } catch (error) {
     console.error('API Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add groq chat completions endpoint
+app.post('/api/groq/chat/completions', async (req, res) => {
+  // Create a mock Vercel-like req/res object
+  const mockReq = {
+    method: req.method,
+    body: req.body,
+    headers: req.headers
+  };
+  
+  const mockRes = {
+    setHeader: (key, value) => res.setHeader(key, value),
+    status: (code) => {
+      res.status(code);
+      return {
+        json: (data) => res.json(data),
+        end: () => res.end()
+      };
+    },
+    json: (data) => res.json(data)
+  };
+  
+  try {
+    await groqChatHandler(mockReq, mockRes);
+  } catch (error) {
+    console.error('Groq Chat API Error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
