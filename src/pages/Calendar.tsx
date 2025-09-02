@@ -63,6 +63,9 @@ const Calendar = () => {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
+  // State for selected date in list view (default to today)
+  const [selectedListDate, setSelectedListDate] = useState<string>(formatDateLocal(new Date()));
+
   // Convert tasks to calendar events format
   const calendarEvents = tasks.map(task => {
     const subject = subjects?.find(s => s.id === task.subject_id);
@@ -148,7 +151,47 @@ const Calendar = () => {
       return a.fullDate.getTime() - b.fullDate.getTime();
     });
 
-  // Group events by date for list view
+  // Filter events for selected date in list view
+  const eventsForSelectedDate = allEventsForList.filter(event => event.date === selectedListDate);
+
+  // Get unique dates that have events for the dropdown
+  const availableDates = [...new Set(allEventsForList.map(event => event.date).filter(Boolean))]
+    .sort()
+    .map(dateStr => {
+      const date = new Date(dateStr + 'T00:00:00');
+      const today = new Date();
+      const tomorrow = new Date(today.getTime() + 86400000);
+      
+      let label = date.toLocaleDateString('de-DE', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      if (dateStr === formatDateLocal(today)) {
+        label = `Heute, ${label}`;
+      } else if (dateStr === formatDateLocal(tomorrow)) {
+        label = `Morgen, ${label}`;
+      }
+      
+      return { value: dateStr, label };
+    });
+
+  // If no events exist, add today as an option
+  if (availableDates.length === 0) {
+    const today = new Date();
+    const todayStr = formatDateLocal(today);
+    const todayLabel = `Heute, ${today.toLocaleDateString('de-DE', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })}`;
+    availableDates.push({ value: todayStr, label: todayLabel });
+  }
+
+  // Group events by date for list view (keeping for potential future use)
   const groupedEvents = allEventsForList.reduce((groups, event) => {
     const dateKey = event.date || 'no-date';
     if (!groups[dateKey]) {
@@ -887,65 +930,39 @@ const Calendar = () => {
 
         {/* Content based on view mode */}
         {viewMode === "list" ? (
-          /* List View - Upcoming Events */
+          /* List View - Events for Selected Date */
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="w-5 h-5" />
-                Anstehende Termine
+                Termine
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {allEventsForList.length > 0 ? (
-                <div className={`${isMobile ? 'space-y-4' : 'space-y-6'}`}>
-                  {Object.entries(groupedEvents).map(([dateKey, dayEvents]: [string, typeof allEventsForList]) => {
-                    const eventDate = dayEvents[0]?.fullDate;
-                    const isToday = eventDate && eventDate.toDateString() === new Date().toDateString();
-                    const isTomorrow = eventDate && eventDate.toDateString() === new Date(Date.now() + 86400000).toDateString();
-                    
-                    let dateLabel = eventDate?.toLocaleDateString('de-DE', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    });
-                    
-                    // Additional month and day display for clarity
-                    const monthDay = eventDate?.toLocaleDateString('de-DE', {
-                      month: 'short',
-                      day: '2-digit'
-                    });
-                    
-                    if (isToday) dateLabel = `Heute, ${dateLabel}`;
-                    else if (isTomorrow) dateLabel = `Morgen, ${dateLabel}`;
-                    
-                    return (
-                      <div key={dateKey} className={`${isMobile ? 'space-y-2' : 'space-y-3'}`}>
-                        {/* Date Header */}
-                        <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'} pb-2 border-b`}>
-                          <CalendarIcon className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-primary`} />
-                          <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'}`}>
-                            <div className={`text-center bg-primary/10 rounded-lg ${isMobile ? 'p-1.5 min-w-[50px]' : 'p-2 min-w-[60px]'}`}>
-                              <div className={`${isMobile ? 'text-xs' : 'text-xs'} font-medium text-primary uppercase`}>
-                                {eventDate?.toLocaleDateString('de-DE', { month: 'short' })}
-                              </div>
-                              <div className={`${isMobile ? 'text-base' : 'text-lg'} font-bold text-primary`}>
-                                {eventDate?.getDate()}
-                              </div>
-                            </div>
-                            <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold text-foreground ${isMobile ? 'truncate' : ''}`}>
-                              {dateLabel}
-                            </h3>
-                          </div>
-                          <Badge variant="secondary" className={`ml-auto ${isMobile ? 'text-xs' : ''}`}>
-                            {dayEvents.length} {dayEvents.length === 1 ? 'Termin' : 'Termine'}
-                          </Badge>
-                        </div>
-                        
-                        {/* Events for this day */}
-                        <div className={`${isMobile ? 'space-y-1.5 ml-4' : 'space-y-2 ml-8'}`}>
-                          {dayEvents.map((event) => (
-                            <div key={event.id} className={`${isMobile ? 'flex flex-col gap-2 p-3' : 'flex items-center gap-4 p-3'} border rounded-lg hover:bg-accent/50 transition-colors ${event.status === 'completed' ? 'opacity-70 bg-muted/30' : ''}`}>
+              {/* Date Selector */}
+              <div className="flex items-center gap-4 mb-6 p-4 bg-muted/30 rounded-lg">
+                <label htmlFor="date-select" className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                  Datum auswählen:
+                </label>
+                <select
+                  id="date-select"
+                  value={selectedListDate}
+                  onChange={(e) => setSelectedListDate(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                >
+                  {availableDates.map(({ value, label }) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Events for Selected Date */}
+               {eventsForSelectedDate.length > 0 ? (
+                 <div className={`${isMobile ? 'space-y-2' : 'space-y-3'}`}>
+                    {eventsForSelectedDate.map((event) => (
+                      <div key={event.id} className={`${isMobile ? 'flex flex-col gap-2 p-3' : 'flex items-center gap-4 p-3'} border rounded-lg hover:bg-accent/50 transition-colors ${event.status === 'completed' ? 'opacity-70 bg-muted/30' : ''}`}>
                               {isMobile ? (
                                 /* Mobile Layout - Stacked */
                                 <>
@@ -1074,26 +1091,22 @@ const Calendar = () => {
                                   </div>
                                 </>
                               )}
-                            </div>
-                          ))}
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <CalendarIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Keine anstehenden Termine</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Du hast aktuell keine anstehenden Termine.
-                  </p>
-                  <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Ersten Termin erstellen
-                  </Button>
-                </div>
-              )}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <CalendarIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">Keine Termine für dieses Datum</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Für das ausgewählte Datum sind keine Termine vorhanden.
+                      </p>
+                      <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2">
+                        <Plus className="w-4 h-4" />
+                        Termin erstellen
+                      </Button>
+                    </div>
+                  )}
             </CardContent>
           </Card>
         ) : (
