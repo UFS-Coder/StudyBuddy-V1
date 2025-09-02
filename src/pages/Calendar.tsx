@@ -28,7 +28,7 @@ const Calendar = () => {
   const updateTaskMutation = useUpdateTask();
   const deleteTaskMutation = useDeleteTask();
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<"list" | "calendar">("calendar");
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
