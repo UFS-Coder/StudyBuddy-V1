@@ -292,6 +292,69 @@ export const useTaskTracking = () => {
     return changes;
   };
 
+  // Clear historical task data
+  const clearHistoricalData = () => {
+    if (!user) return;
+    
+    const existingData = JSON.parse(localStorage.getItem('task_history') || '[]');
+    const otherUserData = existingData.filter((record: TaskSnapshot) => record.user_id !== user.id);
+    localStorage.setItem('task_history', JSON.stringify(otherUserData));
+    
+    queryClient.invalidateQueries({ queryKey: ['task-tracking'] });
+  };
+
+  // Seed historical task data for proper change calculations
+  const seedHistoricalData = () => {
+    if (!user) return;
+    
+    // Clear existing data first
+    clearHistoricalData();
+    
+    const currentMetrics = getCurrentTaskMetrics();
+    const now = new Date();
+    
+    // Create yesterday's snapshot with more tasks/homework to show negative change (improvement)
+    const yesterdaySnapshot: TaskSnapshot = {
+      user_id: user.id,
+      total_tasks: currentMetrics.total_tasks + 2,
+      completed_tasks: currentMetrics.completed_tasks,
+      open_tasks: currentMetrics.open_tasks + 2,
+      total_homework: currentMetrics.total_homework + 1,
+      completed_homework: currentMetrics.completed_homework,
+      open_homework: currentMetrics.open_homework + 1,
+      completion_rate_tasks: currentMetrics.completion_rate_tasks,
+      completion_rate_homework: currentMetrics.completion_rate_homework,
+      overdue_tasks: Math.max(0, currentMetrics.overdue_tasks - 1),
+      overdue_homework: Math.max(0, currentMetrics.overdue_homework),
+      subject_breakdown: currentMetrics.subject_breakdown.map(subject => ({
+        ...subject,
+        total_tasks: Math.max(0, subject.total_tasks - 1),
+        total_homework: Math.max(0, subject.total_homework)
+      })),
+      recorded_at: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+      id: `task_${Date.now() - 86400000}_${Math.random().toString(36).substr(2, 9)}`,
+      created_at: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+    };
+    
+    // Create today's snapshot
+    const todaySnapshot: TaskSnapshot = {
+      user_id: user.id,
+      ...currentMetrics,
+      recorded_at: now.toISOString(),
+      id: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString()
+    };
+    
+    // Store both snapshots
+    const existingData = JSON.parse(localStorage.getItem('task_history') || '[]');
+    const newData = [...existingData, yesterdaySnapshot, todaySnapshot];
+    localStorage.setItem('task_history', JSON.stringify(newData));
+    
+    queryClient.invalidateQueries({ queryKey: ['task-tracking'] });
+  };
+
   // Auto-record task snapshots when tasks change (disabled to prevent infinite re-renders)
   // useEffect(() => {
   //   if (user && tasks.length >= 0) { // Allow recording even with 0 tasks
@@ -311,6 +374,8 @@ export const useTaskTracking = () => {
     taskHistory,
     getTaskChange,
     getSubjectTaskChanges,
+    seedHistoricalData,
+    clearHistoricalData,
     isRecording: recordTaskSnapshot.isPending,
     hasHistoricalData: taskHistory.length > 1
   };

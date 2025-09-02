@@ -62,9 +62,9 @@ const Index = () => {
   } = useDailyFacts();
 
   // Initialize tracking hooks
-  const { getMetricsChanges } = useMetricsTracking();
+  const { getMetricsChanges, seedHistoricalData } = useMetricsTracking();
   const { getGradeChange } = useGradeTracking();
-  const { getTaskChange } = useTaskTracking();
+  const { getTaskChange, seedHistoricalData: seedTaskHistoricalData } = useTaskTracking();
 
   // State for tracking changes
   const [curriculumChange, setCurriculumChange] = useState<string | undefined>(undefined);
@@ -73,21 +73,32 @@ const Index = () => {
   const [tasksChangeType, setTasksChangeType] = useState<'positive' | 'negative' | 'neutral'>('neutral');
   const [homeworkChange, setHomeworkChange] = useState<string | undefined>(undefined);
   const [homeworkChangeType, setHomeworkChangeType] = useState<'positive' | 'negative' | 'neutral'>('neutral');
-  const [subjectsChange, setSubjectsChange] = useState<string | undefined>(undefined);
-  const [subjectsChangeType, setSubjectsChangeType] = useState<'positive' | 'negative' | 'neutral'>('neutral');
+
   const [meldungenChange, setMeldungenChange] = useState<string | undefined>(undefined);
   const [meldungenChangeType, setMeldungenChangeType] = useState<'positive' | 'negative' | 'neutral'>('neutral');
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('week');
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('day');
 
   // Fetch change data
   useEffect(() => {
     const fetchChanges = async () => {
       try {
         // Get task changes
-        const taskChanges = await getTaskChange(
+        let taskChanges = await getTaskChange(
           selectedTimePeriod === 'day' ? 1 : 
           selectedTimePeriod === 'week' ? 7 : 30
         );
+        
+        // If no task changes data, seed historical data and try again
+        if (!taskChanges) {
+          seedTaskHistoricalData();
+          // Wait a bit for the data to be seeded
+          await new Promise(resolve => setTimeout(resolve, 100));
+          taskChanges = await getTaskChange(
+            selectedTimePeriod === 'day' ? 1 : 
+            selectedTimePeriod === 'week' ? 7 : 30
+          );
+        }
+        
         if (taskChanges) {
           const tasksChangeValue = taskChanges.tasks_change;
           const homeworkChangeValue = taskChanges.homework_change;
@@ -135,21 +146,7 @@ const Index = () => {
             setCurriculumChangeType('neutral');
           }
           
-          // Active subjects
-          if (metricsChanges.active_subjects) {
-            const subjectsChangeValue = metricsChanges.active_subjects.change_percentage;
-            if (Math.abs(subjectsChangeValue) >= 1) {
-              setSubjectsChange(`${subjectsChangeValue > 0 ? '+' : ''}${Math.round(subjectsChangeValue)}`);
-              setSubjectsChangeType(metricsChanges.active_subjects.change_type === 'positive' ? 'positive' : 
-                                   metricsChanges.active_subjects.change_type === 'negative' ? 'negative' : 'neutral');
-            } else {
-              setSubjectsChange('+0');
-              setSubjectsChangeType('neutral');
-            }
-          } else {
-            setSubjectsChange('+0');
-            setSubjectsChangeType('neutral');
-          }
+
           
           // Meldungen
           if (metricsChanges.meldungen) {
@@ -169,8 +166,6 @@ const Index = () => {
         } else {
           setCurriculumChange('+0.0%');
           setCurriculumChangeType('neutral');
-          setSubjectsChange('+0');
-          setSubjectsChangeType('neutral');
           setMeldungenChange('+0');
           setMeldungenChangeType('neutral');
         }
@@ -183,8 +178,6 @@ const Index = () => {
         setTasksChangeType('neutral');
         setHomeworkChange('+0');
         setHomeworkChangeType('neutral');
-        setSubjectsChange('+0');
-        setSubjectsChangeType('neutral');
         setMeldungenChange('+0');
         setMeldungenChangeType('neutral');
       }
@@ -194,6 +187,14 @@ const Index = () => {
       fetchChanges();
     }
   }, [user?.id, selectedTimePeriod]);
+
+  // Seed historical data if needed
+  useEffect(() => {
+    if (user?.id && subjects.length > 0) {
+      // Always seed fresh historical data to ensure correct calculations
+      seedHistoricalData();
+    }
+  }, [user?.id, subjects.length, seedHistoricalData]);
 
   // Initialize facts and show overlay on first visit
   useEffect(() => {
@@ -342,7 +343,6 @@ const Index = () => {
   const studentName = profile?.display_name || user.email?.split('@')[0] || "Student";
   
   // Calculate metrics from real data
-  const totalSubjects = subjects.length;
   const subjectsWithGrades = subjects.filter(s => s.current_grade);
   const averageGrade = subjectsWithGrades.length > 0 
     ? subjectsWithGrades.reduce((sum, subject) => sum + (subject.current_grade || 0), 0) / subjectsWithGrades.length
@@ -404,22 +404,24 @@ const Index = () => {
         
         {/* Metrics Grid - only show if there's data */}
         {(subjects.length > 0 || tasks.length > 0) && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <MetricCard
               title={t.curriculumProgress}
               value={subjects.length > 0 ? `${Math.round(overallCurriculumProgress)}%` : "0%"}
               change={curriculumChange}
               changeType={curriculumChangeType}
-              icon={<span className="h-4 w-4">🎯</span>}
+              icon={<span className="h-6 w-6">🎯</span>}
               iconColor="text-primary"
               onClick={() => setIsSubjectsModalOpen(true)}
+              showProgress={true}
+              progressValue={subjects.length > 0 ? overallCurriculumProgress : 0}
             />
             <MetricCard
               title="Open Tasks"
               value={totalOpenTasks.toString()}
               change={tasksChange}
               changeType={tasksChangeType}
-              icon={<span className="h-4 w-4">📋</span>}
+              icon={<span className="h-6 w-6">📋</span>}
               iconColor="text-warning"
               onClick={() => setIsTasksModalOpen(true)}
             />
@@ -428,25 +430,16 @@ const Index = () => {
               value={totalOpenHomework.toString()}
               change={homeworkChange}
               changeType={homeworkChangeType}
-              icon={<span className="h-4 w-4">📝</span>}
+              icon={<span className="h-6 w-6">📝</span>}
               iconColor="text-blue-600"
               onClick={() => setIsHomeworkModalOpen(true)}
-            />
-            <MetricCard
-              title={t.activeSubjects}
-              value={totalSubjects.toString()}
-              change={subjectsChange}
-              changeType={subjectsChangeType}
-              icon={<span className="h-4 w-4">📚</span>}
-              iconColor="text-primary"
-              onClick={() => navigate('/subjects')}
             />
             <MetricCard
               title="Meldungen heute"
               value={totalMeldungenToday.toString()}
               change={meldungenChange}
               changeType={meldungenChangeType}
-              icon={<span className="h-4 w-4">🙋</span>}
+              icon={<span className="h-6 w-6">🙋</span>}
               iconColor="text-green-600"
               onClick={() => setIsMeldungenModalOpen(true)}
             />

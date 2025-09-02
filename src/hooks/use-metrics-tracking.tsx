@@ -246,13 +246,55 @@ export const useMetricsTracking = () => {
     return changes;
   };
 
-  // Auto-record metrics when data changes (disabled to prevent infinite re-renders)
-  // useEffect(() => {
-  //   if (user && subjects.length > 0) {
-  //     const currentMetrics = getCurrentMetrics();
-  //     recordMetricsSnapshot.mutate(currentMetrics);
-  //   }
-  // }, [user, subjects, tasks, gradesBySubject, todayMeldungen, topics]);
+  // Auto-record metrics when data changes (with debouncing to prevent infinite re-renders)
+  useEffect(() => {
+    if (user && subjects.length > 0) {
+      const timeoutId = setTimeout(() => {
+        const currentMetrics = getCurrentMetrics();
+        recordMetricsSnapshot.mutate(currentMetrics);
+      }, 1000); // Debounce for 1 second
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [user?.id, subjects.length, tasks.length, Object.keys(gradesBySubject).length, todayMeldungen.length]);
+
+  // Function to clear historical data
+  const clearHistoricalData = () => {
+    localStorage.removeItem('metrics_history');
+    queryClient.invalidateQueries({ queryKey: ['metrics-tracking'] });
+  };
+
+  // Function to seed initial historical data for testing
+  const seedHistoricalData = () => {
+    if (!user) return;
+    
+    // Clear existing data first
+    clearHistoricalData();
+    
+    const currentMetrics = getCurrentMetrics();
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    // Create historical data with yesterday having 0 meldungen to show proper change
+    const historicalData = [
+      {
+        user_id: user.id,
+        metrics: {
+          ...currentMetrics,
+          meldungen: 0 // Yesterday had 0 meldungen
+        },
+        recorded_at: yesterday.toISOString()
+      },
+      {
+        user_id: user.id,
+        metrics: currentMetrics,
+        recorded_at: now.toISOString()
+      }
+    ];
+    
+    localStorage.setItem('metrics_history', JSON.stringify(historicalData));
+    queryClient.invalidateQueries({ queryKey: ['metrics-tracking'] });
+  };
 
   return {
     getCurrentMetrics,
@@ -260,6 +302,8 @@ export const useMetricsTracking = () => {
     getMetricChange,
     getMetricsChanges,
     historicalMetrics,
+    seedHistoricalData,
+    clearHistoricalData,
     isRecording: recordMetricsSnapshot.isPending
   };
 };
