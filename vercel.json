@@ -8,6 +8,9 @@
     },
     "api/groq-facts.js": {
       "runtime": "nodejs18.x"
+    },
+    "api/notes/smartify.js": {
+      "runtime": "nodejs18.x"
     }
   },
   "rewrites": [

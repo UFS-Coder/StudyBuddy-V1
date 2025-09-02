@@ -24,6 +24,8 @@ interface Note {
   id: string;
   title: string;
   content: string;
+  smart_notes?: string | null;
+  smart_notes_outdated?: boolean;
   time_period: "day" | "week" | "month" | "quarter" | "half_year";
   subject_id: string | null;
   topic_id: string | null;
@@ -47,6 +49,11 @@ const Notes = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [viewingNote, setViewingNote] = useState<Note | null>(null);
+  const [isGeneratingSmartNotes, setIsGeneratingSmartNotes] = useState(false);
+  const [smartNotesView, setSmartNotesView] = useState<'original' | 'smart'>('smart');
+  const [currentSmartNotes, setCurrentSmartNotes] = useState<string | null>(null);
+  const [originalContent, setOriginalContent] = useState<string>("");
+  const [smartNotesLanguage, setSmartNotesLanguage] = useState<'auto' | 'en' | 'de'>('auto');
 
   const [formData, setFormData] = useState({
     title: "",
@@ -58,6 +65,81 @@ const Notes = () => {
   });
 
   const studentName = profile?.display_name || user?.email?.split("@")[0] || "Student";
+
+  // Simple converter for markdown-like Smart Notes (bullets, numbers, bold/italic) to safe HTML
+  const convertSmartMarkdownToHtml = (text: string): string => {
+    if (!text) return '';
+
+    const escapeHtml = (s: string) => s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    const inlineFormat = (s: string) => escapeHtml(s)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/__(.+?)__/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/_(.+?)_/g, '<em>$1</em>');
+
+    const lines = text.replace(/\r\n/g, '\n').split('\n');
+
+    let html = '';
+    let inUl = false;
+    let inOl = false;
+
+    const closeLists = () => {
+      if (inUl) { html += '</ul>'; inUl = false; }
+      if (inOl) { html += '</ol>'; inOl = false; }
+    };
+
+    for (const rawLine of lines) {
+      const line = rawLine.trimEnd();
+
+      if (!line.trim()) {
+        // Blank line separates paragraphs/lists
+        closeLists();
+        continue;
+      }
+
+      // Headings like #, ##, ###
+      const headerMatch = line.match(/^#{1,6}\s+(.*)$/);
+      if (headerMatch) {
+        const level = (line.match(/^#+/) || ['#'])[0].length;
+        closeLists();
+        html += `<h${level}>${inlineFormat(headerMatch[1])}</h${level}>`;
+        continue;
+      }
+
+      // Unordered list: -, *, •
+      const ulMatch = line.match(/^\s*[-*•]\s+(.*)$/);
+      if (ulMatch) {
+        if (!inUl) { closeLists(); html += '<ul class="list-disc pl-5 space-y-1">'; inUl = true; }
+        html += `<li>${inlineFormat(ulMatch[1])}</li>`;
+        continue;
+      }
+
+      // Ordered list: 1. 2) etc.
+      const olMatch = line.match(/^\s*\d+[.)]\s+(.*)$/);
+      if (olMatch) {
+        if (!inOl) { closeLists(); html += '<ol class="list-decimal pl-5 space-y-1">'; inOl = true; }
+        html += `<li>${inlineFormat(olMatch[1])}</li>`;
+        continue;
+      }
+
+      // Default paragraph
+      closeLists();
+      html += `<p>${inlineFormat(line)}</p>`;
+    }
+
+    closeLists();
+
+    // Fallback: if everything collapsed, ensure we at least keep line breaks
+    if (!html) {
+      return `<p>${inlineFormat(text).replace(/\n/g, '<br>')}</p>`;
+    }
+
+    return html;
+  };
 
   // Helper function to format AI notes content
   const formatAiNotesContent = (content: string): string => {
@@ -174,9 +256,16 @@ const Notes = () => {
         `;
       }
     } catch (e) {
-      // Not JSON or not AI notes format, return as is
+      // Not JSON or not AI notes format, fall through
     }
-    return content;
+    
+    // If the content already appears to be HTML (from the rich text editor), return as-is
+    if (/<[a-z][\s\S]*>/i.test(content)) {
+      return content;
+    }
+    
+    // Otherwise, convert markdown-like Smart Notes text to HTML
+    return convertSmartMarkdownToHtml(content);
   };
 
   // Helper function to format AI notes content for preview (German only, no "AI notes:" prefix)
@@ -261,6 +350,8 @@ const Notes = () => {
           id: note.id,
           title: note.title,
           content: note.content,
+          smart_notes: (note as any).smart_notes || null,
+          smart_notes_outdated: (note as any).smart_notes_outdated || false,
           time_period: note.time_period,
           subject_id: note.subject_id,
           topic_id: note.topic_id,
@@ -364,6 +455,69 @@ const Notes = () => {
     },
   });
 
+  // Smart Notes generation mutation
+  const generateSmartNotesMutation = useMutation({
+    mutationFn: async ({ noteId, content, subtopicId }: { noteId: string; content: string; subtopicId?: string }) => {
+      const response = await fetch('/api/notes/smartify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subtopicId: subtopicId || null,
+          notes: content,
+          language: smartNotesLanguage // explicit language control: 'auto' | 'en' | 'de'
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate Smart Notes');
+      }
+
+      const data = await response.json();
+      
+      // Update the note in the database with smart notes
+       const { error } = await supabase
+         .from('notes')
+         .update({ 
+           smart_notes: data.smartNotes,
+           smart_notes_outdated: false
+         } as any)
+         .eq('id', noteId);
+      
+      if (error) throw error;
+      
+      return data;
+    },
+    onSuccess: (data) => {
+      setCurrentSmartNotes(data.smartNotes);
+      setSmartNotesView('smart');
+      queryClient.invalidateQueries({ queryKey: ["notes", user?.id] });
+      
+      if (data.wasTruncated) {
+        toast({ 
+          title: "Smart Notes erstellt", 
+          description: "Hinweis: Ihre Notizen waren zu lang und wurden gekürzt. Für beste Ergebnisse teilen Sie längere Notizen in kleinere Abschnitte auf.",
+          variant: "default"
+        });
+      } else {
+        toast({ 
+          title: "Erfolg", 
+          description: "Smart Notes erfolgreich erstellt" 
+        });
+      }
+    },
+    onError: (error) => {
+      console.error('Error generating Smart Notes:', error);
+      toast({ 
+        title: "Fehler", 
+        description: error instanceof Error ? error.message : "Smart Notes konnten nicht erstellt werden. Bitte erneut versuchen.",
+        variant: "destructive"
+      });
+    },
+  });
+
   const filteredNotes = notes.filter(note => {
     const matchesSearch = !searchTerm || 
       note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -389,7 +543,48 @@ const Notes = () => {
       topic_id: note.topic_id || "",
       subtopic_id: note.subtopic_id || "",
     });
+    setCurrentSmartNotes(note.smart_notes || null);
+    setSmartNotesView('smart');
+    setOriginalContent(note.content); // Track original content
     setIsCreateDialogOpen(true);
+  };
+
+  const handleContentChange = (content: string) => {
+    setFormData(prev => ({ ...prev, content }));
+    
+    // Check if content has changed from original and mark smart notes as outdated
+    if (editingNote && originalContent && content !== originalContent && currentSmartNotes) {
+      // Mark smart notes as outdated in the database
+      supabase
+        .from('notes')
+        .update({ smart_notes_outdated: true } as any)
+        .eq('id', editingNote.id)
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["notes", user?.id] });
+        });
+    }
+  };
+
+  const handleGenerateSmartNotes = async () => {
+    if (!editingNote || !formData.content.trim()) {
+      toast({
+        title: "Fehler",
+        description: "Bitte speichern Sie zuerst Ihre Notiz, bevor Sie Smart Notes erstellen.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsGeneratingSmartNotes(true);
+    try {
+      await generateSmartNotesMutation.mutateAsync({
+        noteId: editingNote.id,
+        content: formData.content,
+        subtopicId: formData.subtopic_id || undefined
+      });
+    } finally {
+      setIsGeneratingSmartNotes(false);
+    }
   };
 
   const handleNewNote = () => {
@@ -441,6 +636,8 @@ const Notes = () => {
 
   const handleView = (note: Note) => {
     setViewingNote(note);
+    setCurrentSmartNotes(note.smart_notes || null);
+    setSmartNotesView('smart');
   };
 
   return (
@@ -555,7 +752,7 @@ const Notes = () => {
                       <ReactQuill
                         theme="snow"
                         value={formData.content}
-                        onChange={(content) => setFormData(prev => ({ ...prev, content }))}
+                        onChange={handleContentChange}
                         placeholder="Notiz-Inhalt eingeben..."
                         style={{ height: 'calc(100vh - 400px)', maxHeight: '400px' }}
                         modules={{
@@ -574,6 +771,92 @@ const Notes = () => {
                         }}
                       />
                     </div>
+                    
+                    {/* Smart Notes Section */}
+                    {editingNote && (
+                      <div className="mt-4 space-y-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <Select
+                            value={smartNotesLanguage}
+                            onValueChange={(value) => setSmartNotesLanguage(value as 'auto' | 'en' | 'de')}
+                          >
+                            <SelectTrigger className="w-[160px] text-sm">
+                              <SelectValue placeholder={language === 'en' ? 'Auto detect' : 'Automatisch'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto">{language === 'en' ? 'Auto detect' : 'Automatisch'}</SelectItem>
+                              <SelectItem value="en">English</SelectItem>
+                              <SelectItem value="de">Deutsch</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleGenerateSmartNotes}
+                            disabled={isGeneratingSmartNotes || !formData.content.trim()}
+                            className="gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
+                          >
+                            {isGeneratingSmartNotes ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                {language === 'en' ? 'Creating Smart Notes...' : 'Smart Notes werden erstellt...'}
+                              </>
+                            ) : (
+                              'Generate Smart Notes'
+                            )}
+                          </Button>
+                        </div>
+                        
+                        {(currentSmartNotes || smartNotesView === 'smart') && (
+                          <div className="border rounded-lg p-4 bg-gray-50">
+                            <div className="flex gap-2 mb-3">
+                              <Button
+                                type="button"
+                                variant={smartNotesView === 'smart' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setSmartNotesView('smart')}
+                                disabled={!currentSmartNotes}
+                              >
+                                Smart Notes
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={smartNotesView === 'original' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setSmartNotesView('original')}
+                              >
+                                Original Notes
+                              </Button>
+                            </div>
+                            
+                            <div className="bg-white rounded border p-3 min-h-[100px] max-h-[200px] overflow-y-auto">
+                              {smartNotesView === 'original' ? (
+                                <div 
+                                  dangerouslySetInnerHTML={{ __html: formData.content }}
+                                  className="prose prose-lg max-w-none text-base leading-relaxed"
+                                  style={{
+                                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                                    lineHeight: '1.7',
+                                    color: '#374151'
+                                  }}
+                                />
+                              ) : (
+                                <div 
+                                  dangerouslySetInnerHTML={{ __html: formatAiNotesContent(currentSmartNotes || '') }}
+                                  className="prose prose-lg max-w-none text-base leading-relaxed"
+                                  style={{
+                                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                                    lineHeight: '1.7',
+                                    color: '#374151'
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2 pt-4 flex-shrink-0">
                     <Button type="submit" disabled={saveNoteMutation.isPending} className="flex-1">
@@ -627,6 +910,26 @@ const Notes = () => {
                     </div>
                   </div>
                   <div className="flex-1 overflow-y-auto">
+                    {/* Smart Notes Toggle for View */}
+                    {currentSmartNotes && (
+                      <div className="mb-4 flex gap-2">
+                        <Button
+                          variant={smartNotesView === 'smart' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSmartNotesView('smart')}
+                        >
+                          Smart Notes
+                        </Button>
+                        <Button
+                          variant={smartNotesView === 'original' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSmartNotesView('original')}
+                        >
+                          Original Notes
+                        </Button>
+                      </div>
+                    )}
+                    
                     <div className="prose prose-lg max-w-none">
                       <div 
                         className="text-base leading-relaxed space-y-4 p-4 bg-gray-50 rounded-lg border"
@@ -636,7 +939,11 @@ const Notes = () => {
                           color: '#374151'
                         }}
                         dangerouslySetInnerHTML={{ 
-                          __html: formatAiNotesContent(viewingNote.content)
+                          __html: formatAiNotesContent(
+                            smartNotesView === 'smart' && currentSmartNotes 
+                              ? currentSmartNotes 
+                              : viewingNote.content
+                          )
                             .replace(/<p>/g, '<p style="margin-bottom: 1rem; line-height: 1.7;">')
                             .replace(/<h1>/g, '<h1 style="font-size: 1.5rem; font-weight: 600; margin: 1.5rem 0 1rem 0; color: #1f2937;">')
                             .replace(/<h2>/g, '<h2 style="font-size: 1.25rem; font-weight: 600; margin: 1.25rem 0 0.75rem 0; color: #1f2937;">')

@@ -16,6 +16,7 @@ app.use(express.json());
 import groqFactsHandler from './api/groq-facts.js';
 import groqChatHandler from './api/groq-chat.js';
 import generatePracticeQuestionsHandler from './api/generate-practice-questions.js';
+import smartifyHandler from './api/notes/smartify.js';
 
 // Convert Vercel handler to Express middleware
 app.post('/api/groq-facts', async (req, res) => {
@@ -100,6 +101,35 @@ app.post('/api/generate-practice-questions', async (req, res) => {
     await generatePracticeQuestionsHandler(mockReq, mockRes);
   } catch (error) {
     console.error('Generate Practice Questions API Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add smartify notes endpoint
+app.post('/api/notes/smartify', async (req, res) => {
+  // Create a mock Vercel-like req/res object
+  const mockReq = {
+    method: req.method,
+    body: req.body,
+    headers: req.headers
+  };
+  
+  const mockRes = {
+    setHeader: (key, value) => res.setHeader(key, value),
+    status: (code) => {
+      res.status(code);
+      return {
+        json: (data) => res.json(data),
+        end: () => res.end()
+      };
+    },
+    json: (data) => res.json(data)
+  };
+  
+  try {
+    await smartifyHandler(mockReq, mockRes);
+  } catch (error) {
+    console.error('Smartify API Error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
