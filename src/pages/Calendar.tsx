@@ -63,8 +63,33 @@ const Calendar = () => {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
-  // State for selected date in list view (default to today)
-  const [selectedListDate, setSelectedListDate] = useState<string>(formatDateLocal(new Date()));
+  // State for selected date components in list view (default to today)
+  const today = new Date();
+  const [selectedDay, setSelectedDay] = useState<number>(today.getDate());
+  const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
+  
+  // Construct selected date string from components
+  const selectedListDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+  
+  // Validate and get the selected date object
+  const getSelectedDateObject = () => {
+    try {
+      const date = new Date(selectedYear, selectedMonth - 1, selectedDay);
+      // Check if the date is valid (e.g., not Feb 30)
+      if (date.getFullYear() === selectedYear && 
+          date.getMonth() === selectedMonth - 1 && 
+          date.getDate() === selectedDay) {
+        return date;
+      }
+    } catch {
+      // Invalid date
+    }
+    return null;
+  };
+  
+  const selectedDateObject = getSelectedDateObject();
+  const isValidDate = selectedDateObject !== null;
 
   // Convert tasks to calendar events format
   const calendarEvents = tasks.map(task => {
@@ -941,25 +966,114 @@ const Calendar = () => {
             <CardContent>
               {/* Date Selector */}
               <div className="flex items-center gap-4 mb-6 p-4 bg-muted/30 rounded-lg">
-                <label htmlFor="date-select" className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
                   Datum auswählen:
                 </label>
-                <select
-                  id="date-select"
-                  value={selectedListDate}
-                  onChange={(e) => setSelectedListDate(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                >
-                  {availableDates.map(({ value, label }) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex gap-2 flex-1">
+                  {/* Day Selector */}
+                  <select
+                    value={selectedDay}
+                    onChange={(e) => setSelectedDay(Number(e.target.value))}
+                    className="px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                  >
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                      <option key={day} value={day}>
+                        {day}
+                      </option>
+                    ))}
+                  </select>
+                  
+                  {/* Month Selector */}
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                    className="px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                  >
+                    {[
+                      { value: 1, label: 'Januar' },
+                      { value: 2, label: 'Februar' },
+                      { value: 3, label: 'März' },
+                      { value: 4, label: 'April' },
+                      { value: 5, label: 'Mai' },
+                      { value: 6, label: 'Juni' },
+                      { value: 7, label: 'Juli' },
+                      { value: 8, label: 'August' },
+                      { value: 9, label: 'September' },
+                      { value: 10, label: 'Oktober' },
+                      { value: 11, label: 'November' },
+                      { value: 12, label: 'Dezember' }
+                    ].map(month => (
+                      <option key={month.value} value={month.value}>
+                        {month.label}
+                      </option>
+                    ))}
+                  </select>
+                  
+                  {/* Year Selector */}
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    className="px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                  >
+                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
+              {/* Selected Date Header */}
+              {isValidDate && selectedDateObject && (
+                <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'} pb-4 mb-4 border-b`}>
+                  <CalendarIcon className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-primary`} />
+                  <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'}`}>
+                    <div className={`text-center bg-primary/10 rounded-lg ${isMobile ? 'p-1.5 min-w-[50px]' : 'p-2 min-w-[60px]'}`}>
+                      <div className={`${isMobile ? 'text-xs' : 'text-xs'} font-medium text-primary uppercase`}>
+                        {selectedDateObject.toLocaleDateString('de-DE', { month: 'short' })}
+                      </div>
+                      <div className={`${isMobile ? 'text-base' : 'text-lg'} font-bold text-primary`}>
+                        {selectedDateObject.getDate()}
+                      </div>
+                    </div>
+                    <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold text-foreground ${isMobile ? 'truncate' : ''}`}>
+                      {(() => {
+                        const today = new Date();
+                        const tomorrow = new Date(today.getTime() + 86400000);
+                        let dateLabel = selectedDateObject.toLocaleDateString('de-DE', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        });
+                        
+                        if (selectedListDate === formatDateLocal(today)) {
+                          dateLabel = `Heute, ${dateLabel}`;
+                        } else if (selectedListDate === formatDateLocal(tomorrow)) {
+                          dateLabel = `Morgen, ${dateLabel}`;
+                        }
+                        
+                        return dateLabel;
+                      })()} 
+                    </h3>
+                  </div>
+                  <Badge variant="secondary" className={`ml-auto ${isMobile ? 'text-xs' : ''}`}>
+                    {eventsForSelectedDate.length} {eventsForSelectedDate.length === 1 ? 'Termin' : 'Termine'}
+                  </Badge>
+                </div>
+              )}
+
+              {/* Invalid Date Warning */}
+              {!isValidDate && (
+                <div className="text-center py-4 mb-4 text-destructive bg-destructive/10 rounded-lg">
+                  <p className="text-sm font-medium">Ungültiges Datum ausgewählt</p>
+                  <p className="text-xs text-muted-foreground mt-1">Bitte wählen Sie ein gültiges Datum aus.</p>
+                </div>
+              )}
+
               {/* Events for Selected Date */}
-               {eventsForSelectedDate.length > 0 ? (
+               {isValidDate && eventsForSelectedDate.length > 0 ? (
                  <div className={`${isMobile ? 'space-y-2' : 'space-y-3'}`}>
                     {eventsForSelectedDate.map((event) => (
                       <div key={event.id} className={`${isMobile ? 'flex flex-col gap-2 p-3' : 'flex items-center gap-4 p-3'} border rounded-lg hover:bg-accent/50 transition-colors ${event.status === 'completed' ? 'opacity-70 bg-muted/30' : ''}`}>
@@ -1094,7 +1208,7 @@ const Calendar = () => {
                         </div>
                       ))}
                     </div>
-                  ) : (
+                  ) : isValidDate ? (
                     <div className="text-center py-8">
                       <CalendarIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                       <h3 className="text-lg font-medium mb-2">Keine Termine für dieses Datum</h3>
@@ -1106,7 +1220,7 @@ const Calendar = () => {
                         Termin erstellen
                       </Button>
                     </div>
-                  )}
+                  ) : null}
             </CardContent>
           </Card>
         ) : (
