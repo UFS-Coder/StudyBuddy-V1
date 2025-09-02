@@ -141,15 +141,22 @@ const Calendar = () => {
       return a.fullDate.getTime() - b.fullDate.getTime();
     });
 
+  // All events for list view (including completed ones)
+  const allEventsForList = calendarEvents
+    .sort((a, b) => {
+      if (!a.fullDate || !b.fullDate) return 0;
+      return a.fullDate.getTime() - b.fullDate.getTime();
+    });
+
   // Group events by date for list view
-  const groupedEvents = upcomingEvents.reduce((groups, event) => {
+  const groupedEvents = allEventsForList.reduce((groups, event) => {
     const dateKey = event.date || 'no-date';
     if (!groups[dateKey]) {
       groups[dateKey] = [];
     }
     groups[dateKey].push(event);
     return groups;
-  }, {} as Record<string, typeof upcomingEvents>);
+  }, {} as Record<string, typeof allEventsForList>);
 
   // Sort events within each day by time
   Object.keys(groupedEvents).forEach(dateKey => {
@@ -889,9 +896,9 @@ const Calendar = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {upcomingEvents.length > 0 ? (
+              {allEventsForList.length > 0 ? (
                 <div className={`${isMobile ? 'space-y-4' : 'space-y-6'}`}>
-                  {Object.entries(groupedEvents).map(([dateKey, dayEvents]: [string, typeof upcomingEvents]) => {
+                  {Object.entries(groupedEvents).map(([dateKey, dayEvents]: [string, typeof allEventsForList]) => {
                     const eventDate = dayEvents[0]?.fullDate;
                     const isToday = eventDate && eventDate.toDateString() === new Date().toDateString();
                     const isTomorrow = eventDate && eventDate.toDateString() === new Date(Date.now() + 86400000).toDateString();
@@ -938,7 +945,7 @@ const Calendar = () => {
                         {/* Events for this day */}
                         <div className={`${isMobile ? 'space-y-1.5 ml-4' : 'space-y-2 ml-8'}`}>
                           {dayEvents.map((event) => (
-                            <div key={event.id} className={`${isMobile ? 'flex flex-col gap-2 p-3' : 'flex items-center gap-4 p-3'} border rounded-lg hover:bg-accent/50 transition-colors`}>
+                            <div key={event.id} className={`${isMobile ? 'flex flex-col gap-2 p-3' : 'flex items-center gap-4 p-3'} border rounded-lg hover:bg-accent/50 transition-colors ${event.status === 'completed' ? 'opacity-70 bg-muted/30' : ''}`}>
                               {isMobile ? (
                                 /* Mobile Layout - Stacked */
                                 <>
@@ -986,7 +993,7 @@ const Calendar = () => {
                                   </div>
                                   
                                   {/* Title */}
-                                  <h4 className="text-sm font-medium text-foreground">{event.title}</h4>
+                                  <h4 className={`text-sm font-medium text-foreground ${event.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>{event.title}</h4>
                                   
                                   {/* Badges */}
                                   <div className="flex items-center gap-1 flex-wrap">
@@ -1022,7 +1029,7 @@ const Calendar = () => {
                                   {/* Event Details */}
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                      <h4 className="font-medium text-foreground truncate">{event.title}</h4>
+                                      <h4 className={`font-medium text-foreground truncate ${event.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>{event.title}</h4>
                                       <Badge variant={getEventTypeColor(event.type, event.priority) as any} className="flex-shrink-0">
                                         {event.type === "homework" ? "Hausaufgabe" : "Aufgabe"}
                                       </Badge>
