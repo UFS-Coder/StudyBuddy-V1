@@ -1,4 +1,15 @@
 {
+  "functions": {
+    "api/generate-practice-questions.js": {
+      "runtime": "nodejs18.x"
+    },
+    "api/groq-chat.js": {
+      "runtime": "nodejs18.x"
+    },
+    "api/groq-facts.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
   "rewrites": [
     {
       "source": "/((?!api).*)",
