@@ -65,6 +65,74 @@ const GROQ_EXPAND_PROMPT = `You are Buddy. The user wants to know more about thi
 
 Provide 2-3 concise sentences (no more than 70-80 words) with additional context. Keep it teen-friendly, positive, and respectful.`;
 
+// Duplicate prevention helpers for facts
+interface UsedFactsCache {
+  userId: string;
+  usedFacts: Set<string>;
+  lastCleanup: number;
+}
+
+// Simple hash of normalized fact text (browser-safe)
+const hashFact = (fact: string): string => {
+  const normalized = fact.toLowerCase().replace(/[^a-z0-9]/g, '');
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    hash = ((hash << 5) - hash + normalized.charCodeAt(i)) | 0; // djb2-like
+  }
+  return Math.abs(hash).toString(36);
+};
+
+const loadUsedFacts = (userId: string): UsedFactsCache => {
+  try {
+    const cacheKey = `used-facts-${userId}`;
+    const cached = localStorage.getItem(cacheKey);
+    const now = Date.now();
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+    if (cached) {
+      const data = JSON.parse(cached);
+      if (!data.lastCleanup || data.lastCleanup < thirtyDaysAgo) {
+        return { userId, usedFacts: new Set<string>(), lastCleanup: now };
+      }
+      const factsArray: string[] = Array.isArray(data.usedFacts) ? data.usedFacts : [];
+      return {
+        userId,
+        usedFacts: new Set<string>(factsArray),
+        lastCleanup: data.lastCleanup || now,
+      };
+    }
+  } catch (e) {
+    console.error('Error loading used facts cache:', e);
+  }
+  return { userId, usedFacts: new Set<string>(), lastCleanup: Date.now() };
+};
+
+const saveUsedFacts = (cache: UsedFactsCache) => {
+  try {
+    const cacheKey = `used-facts-${cache.userId}`;
+    const data = {
+      userId: cache.userId,
+      usedFacts: Array.from(cache.usedFacts),
+      lastCleanup: cache.lastCleanup,
+    };
+    localStorage.setItem(cacheKey, JSON.stringify(data));
+  } catch (e) {
+    console.error('Error saving used facts cache:', e);
+  }
+};
+
+const isFactUsed = (fact: string, userId: string): boolean => {
+  const cache = loadUsedFacts(userId);
+  const factHash = hashFact(fact);
+  return cache.usedFacts.has(factHash);
+};
+
+const markFactAsUsed = (fact: string, userId: string): void => {
+  const cache = loadUsedFacts(userId);
+  const factHash = hashFact(fact);
+  cache.usedFacts.add(factHash);
+  saveUsedFacts(cache);
+};
+
 export const useDailyFacts = () => {
   const { user } = useAuth();
   const [currentFact, setCurrentFact] = useState<Fact | null>(null);
@@ -131,7 +199,13 @@ export const useDailyFacts = () => {
           category
         })
       });
-
+      
+      // Handle rate limit errors specifically
+      if (response.status === 429) {
+        console.warn('Rate limit reached for Groq API, using fallbacks');
+        throw new Error('rate_limit_exceeded');
+      }
+      
       if (!response.ok) {
         throw new Error('Failed to fetch fact from Groq');
       }
@@ -172,13 +246,24 @@ export const useDailyFacts = () => {
 
   // Generate facts for the day
   const generateDailyFacts = async (): Promise<Fact[]> => {
+    if (!user?.id) return [];
+    
     const facts: Fact[] = [];
     
-    for (let i = 0; i < FACT_CATEGORIES.length; i++) {
-      const category = FACT_CATEGORIES[i];
+    // Shuffle categories for variety
+    const shuffledCategories = [...FACT_CATEGORIES].sort(() => Math.random() - 0.5);
+    
+    for (let i = 0; i < shuffledCategories.length; i++) {
+      const category = shuffledCategories[i];
       try {
         const factText = await fetchFactFromGroq(category);
         if (factText.trim()) {
+          // Skip if already used
+          if (isFactUsed(factText, user.id)) {
+            continue;
+          }
+          // Mark as used and add
+          markFactAsUsed(factText, user.id);
           facts.push({
             id: `${category}-${Date.now()}-${i}`,
             category,
@@ -188,9 +273,39 @@ export const useDailyFacts = () => {
         }
       } catch (error) {
         console.error(`Error generating fact for ${category}:`, error);
-        // Add fallback fact if available
-        const fallback = FALLBACK_FACTS.find(f => f.category === category);
-        if (fallback) {
+        
+        // Try with a different category if available
+        const remainingCategories = FACT_CATEGORIES.filter(cat => 
+          cat !== category && !shuffledCategories.slice(0, i).includes(cat)
+        );
+        
+        if (remainingCategories.length > 0) {
+          const altCategory = remainingCategories[Math.floor(Math.random() * remainingCategories.length)];
+          try {
+            const altFactText = await fetchFactFromGroq(altCategory);
+            if (altFactText.trim() && !isFactUsed(altFactText, user.id)) {
+              markFactAsUsed(altFactText, user.id);
+              facts.push({
+                id: `${altCategory}-${Date.now()}-${i}`,
+                category: altCategory,
+                mainFact: altFactText.trim(),
+                timestamp: Date.now()
+              });
+              continue;
+            }
+          } catch (altError) {
+            console.error(`Error with alternative category ${altCategory}:`, altError);
+          }
+        }
+        
+        // Add unused fallback fact if available
+        const unusedFallbacks = FALLBACK_FACTS.filter(f => 
+          f.category === category && !isFactUsed(f.mainFact, user.id)
+        );
+        
+        if (unusedFallbacks.length > 0) {
+          const fallback = unusedFallbacks[0];
+          markFactAsUsed(fallback.mainFact, user.id);
           facts.push({
             ...fallback,
             id: `fallback-${category}-${Date.now()}`
@@ -199,9 +314,23 @@ export const useDailyFacts = () => {
       }
     }
 
-    // If no facts were generated, use all fallback facts
+    // If no facts were generated, use unused fallback facts, else clear cache and use fallbacks
     if (facts.length === 0) {
-      return FALLBACK_FACTS.map(f => ({ ...f, id: `fallback-${Date.now()}-${Math.random()}` }));
+      const unusedFallbacks = FALLBACK_FACTS.filter(f => !isFactUsed(f.mainFact, user.id));
+      
+      if (unusedFallbacks.length === 0) {
+        // If all fallbacks are used, clear the cache and use all fallbacks
+        const cache = loadUsedFacts(user.id);
+        cache.usedFacts.clear();
+        saveUsedFacts(cache);
+        console.log('All facts exhausted, cleared used facts cache');
+      }
+      
+      const factsToUse = unusedFallbacks.length > 0 ? unusedFallbacks : FALLBACK_FACTS;
+      return factsToUse.map(f => {
+        markFactAsUsed(f.mainFact, user.id);
+        return { ...f, id: `fallback-${Date.now()}-${Math.random()}` };
+      });
     }
 
     return facts;
@@ -263,49 +392,95 @@ export const useDailyFacts = () => {
        const randomCategory = availableCategories[Math.floor(Math.random() * availableCategories.length)];
        
        // Add a small delay to show loading state
-       await new Promise(resolve => setTimeout(resolve, 500));
+       await new Promise(resolve => setTimeout(resolve, 300));
        
-       // Try to generate a fresh fact from Groq
-       const factText = await fetchFactFromGroq(randomCategory);
-      
-      if (factText.trim()) {
-        const newFact: Fact = {
-          id: `${randomCategory}-${Date.now()}-${Math.random()}`,
-          category: randomCategory,
-          mainFact: factText.trim(),
-          timestamp: Date.now()
+       // Try to generate a fresh fact from Groq (with duplicate checking)
+       let factText = '';
+       let attempts = 0;
+       const maxAttempts = 3;
+
+       // Try different categories on retries
+       let categoriesPool = [...availableCategories].sort(() => Math.random() - 0.5);
+       
+       while (attempts < maxAttempts && categoriesPool.length > 0) {
+         const categoryTry = categoriesPool.shift()!;
+         try {
+           const candidate = await fetchFactFromGroq(categoryTry);
+           if (candidate.trim() && !isFactUsed(candidate, user.id)) {
+             factText = candidate.trim();
+             // Use this category for the fact
+             const newFact: Fact = {
+               id: `${categoryTry}-${Date.now()}-${Math.random()}`,
+               category: categoryTry,
+               mainFact: factText,
+               timestamp: Date.now()
+             };
+             // Mark as used and set
+             markFactAsUsed(newFact.mainFact, user.id);
+             setCurrentFact(newFact);
+             // Add to in-memory cache (session-only)
+             const updatedCache = {
+               ...cache,
+               facts: [...cache.facts, newFact],
+               currentIndex: cache.facts.length
+             };
+             setCache(updatedCache);
+             return;
+           }
+         } catch (e) {
+           // swallow and try next
+         }
+         attempts++;
+       }
+
+      // Fallback to unused fallback facts
+      const unusedFallbacks = FALLBACK_FACTS.filter(f => !isFactUsed(f.mainFact, user.id));
+      if (unusedFallbacks.length > 0) {
+        const fallback = unusedFallbacks[Math.floor(Math.random() * unusedFallbacks.length)];
+        markFactAsUsed(fallback.mainFact, user.id);
+        const fallbackFact: Fact = {
+          ...fallback,
+          id: `fallback-${Date.now()}-${Math.random()}`
         };
-        
-        setCurrentFact(newFact);
-        
-        // Add to cache but don't save to localStorage (keep it session-only for fresh facts)
-        const updatedCache = {
-          ...cache,
-          facts: [...cache.facts, newFact],
-          currentIndex: cache.facts.length
-        };
-        setCache(updatedCache);
-      } else {
-        // Fallback to cycling through existing facts if Groq fails
-        const nextIndex = (cache.currentIndex + 1) % cache.facts.length;
-        const nextFact = cache.facts[nextIndex];
-        
-        const updatedCache = { ...cache, currentIndex: nextIndex };
-        setCache(updatedCache);
-        setCurrentFact(nextFact);
-        saveCache(updatedCache);
+        setCurrentFact(fallbackFact);
+        return;
       }
+
+      // All fallbacks used, clear used facts cache and use a random fallback
+      const usedFactsCache = loadUsedFacts(user.id);
+      usedFactsCache.usedFacts.clear();
+      saveUsedFacts(usedFactsCache);
+      const randomFallback = FALLBACK_FACTS[Math.floor(Math.random() * FALLBACK_FACTS.length)];
+      markFactAsUsed(randomFallback.mainFact, user.id);
+      const resetFallbackFact: Fact = {
+        ...randomFallback,
+        id: `fallback-reset-${Date.now()}-${Math.random()}`
+      };
+      setCurrentFact(resetFallbackFact);
     } catch (error) {
       console.error('Error generating next fact:', error);
-      
-      // Fallback to cycling through existing facts
-      const nextIndex = (cache.currentIndex + 1) % cache.facts.length;
-      const nextFact = cache.facts[nextIndex];
-      
-      const updatedCache = { ...cache, currentIndex: nextIndex };
-      setCache(updatedCache);
-      setCurrentFact(nextFact);
-      saveCache(updatedCache);
+      // Same fallback logic on error
+      const unusedFallbacks = FALLBACK_FACTS.filter(f => !isFactUsed(f.mainFact, user.id));
+      if (unusedFallbacks.length > 0) {
+        const fallback = unusedFallbacks[Math.floor(Math.random() * unusedFallbacks.length)];
+        markFactAsUsed(fallback.mainFact, user.id);
+        const fallbackFact: Fact = {
+          ...fallback,
+          id: `fallback-${Date.now()}-${Math.random()}`
+        };
+        setCurrentFact(fallbackFact);
+      } else {
+        const usedFactsCache = loadUsedFacts(user.id);
+        usedFactsCache.usedFacts.clear();
+        saveUsedFacts(usedFactsCache);
+        const randomFallback = FALLBACK_FACTS[Math.floor(Math.random() * FALLBACK_FACTS.length)];
+        markFactAsUsed(randomFallback.mainFact, user.id);
+        const resetFallbackFact: Fact = {
+          ...randomFallback,
+          id: `fallback-reset-${Date.now()}-${Math.random()}`
+        };
+        setCurrentFact(resetFallbackFact);
+      }
     } finally {
       setIsNextFactLoading(false);
     }
@@ -367,12 +542,115 @@ export const useDailyFacts = () => {
     }
   }, [user?.id]);
 
+  // Refresh facts - generate a completely new fact
+  const refreshFacts = useCallback(async () => {
+    if (!user?.id) return;
+    
+    setIsLoading(true);
+    
+    try {
+      // Get a random category for variety
+      const randomCategory = FACT_CATEGORIES[Math.floor(Math.random() * FACT_CATEGORIES.length)];
+      
+      // Try to generate a fresh fact from Groq (with duplicate checking)
+      let factText = '';
+      let attempts = 0;
+      const maxAttempts = 3;
+      let categoriesPool = [...FACT_CATEGORIES].sort(() => Math.random() - 0.5);
+      
+      while (attempts < maxAttempts && categoriesPool.length > 0) {
+        const categoryTry = categoriesPool.shift()!;
+        try {
+          const candidate = await fetchFactFromGroq(categoryTry);
+          if (candidate.trim() && !isFactUsed(candidate, user.id)) {
+            factText = candidate.trim();
+            const newFact: Fact = {
+              id: `${categoryTry}-${Date.now()}-${Math.random()}`,
+              category: categoryTry,
+              mainFact: factText,
+              timestamp: Date.now()
+            };
+            markFactAsUsed(newFact.mainFact, user.id);
+            setCurrentFact(newFact);
+            // Update cache with the new fact
+            if (cache) {
+              const updatedCache = {
+                ...cache,
+                facts: [newFact, ...cache.facts],
+                currentIndex: 0
+              };
+              setCache(updatedCache);
+              saveCache(updatedCache);
+            }
+            return;
+          }
+        } catch (e) {
+          // try next
+        }
+        attempts++;
+      }
+      
+      // Fallback to unused fallback facts
+      const unusedFallbacks = FALLBACK_FACTS.filter(f => !isFactUsed(f.mainFact, user.id));
+      
+      if (unusedFallbacks.length > 0) {
+        const randomFallback = unusedFallbacks[Math.floor(Math.random() * unusedFallbacks.length)];
+        markFactAsUsed(randomFallback.mainFact, user.id);
+        const fallbackFact = {
+          ...randomFallback,
+          id: `fallback-${Date.now()}-${Math.random()}`
+        };
+        setCurrentFact(fallbackFact);
+      } else {
+        // All fallbacks used, use first fallback as emergency after clearing used cache
+        const usedFactsCache = loadUsedFacts(user.id);
+        usedFactsCache.usedFacts.clear();
+        saveUsedFacts(usedFactsCache);
+        const emergencyFact = {
+          ...FALLBACK_FACTS[0],
+          id: `emergency-fallback-${Date.now()}`
+        };
+        markFactAsUsed(emergencyFact.mainFact, user.id);
+        setCurrentFact(emergencyFact);
+      }
+    } catch (error) {
+      console.error('Error refreshing facts:', error);
+      
+      // Fallback to unused fallback facts
+      const unusedFallbacks = FALLBACK_FACTS.filter(f => !isFactUsed(f.mainFact, user.id));
+      
+      if (unusedFallbacks.length > 0) {
+        const randomFallback = unusedFallbacks[Math.floor(Math.random() * unusedFallbacks.length)];
+        markFactAsUsed(randomFallback.mainFact, user.id);
+        const fallbackFact = {
+          ...randomFallback,
+          id: `fallback-${Date.now()}-${Math.random()}`
+        };
+        setCurrentFact(fallbackFact);
+      } else {
+        // All fallbacks used, use first fallback as emergency after clearing used cache
+        const usedFactsCache = loadUsedFacts(user.id);
+        usedFactsCache.usedFacts.clear();
+        saveUsedFacts(usedFactsCache);
+        const emergencyFact = {
+          ...FALLBACK_FACTS[0],
+          id: `emergency-fallback-${Date.now()}`
+        };
+        markFactAsUsed(emergencyFact.mainFact, user.id);
+        setCurrentFact(emergencyFact);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.id, cache, saveCache]);
+
   return {
     currentFact,
     isLoading,
     isNextFactLoading,
     initializeFacts,
     getNextFact,
+    refreshFacts,
     tellMeMore,
     shouldShowFactsToday,
     markFactsAsShown

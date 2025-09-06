@@ -11,7 +11,10 @@ import { TasksModal } from "@/components/dashboard/tasks-modal";
 import { HomeworkModal } from "@/components/dashboard/homework-modal";
 import { SubjectsModal } from "@/components/dashboard/subjects-modal";
 import { FactsOverlay } from "@/components/facts/facts-overlay";
+import { QuizOverlay } from "@/components/quiz/quiz-overlay";
 import { useDailyFacts } from "@/hooks/use-daily-facts";
+import { useDailyQuiz } from "@/hooks/use-daily-quiz";
+import { Lightbulb, BookOpen, BrainCircuit } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTranslations } from "@/hooks/use-translations";
@@ -48,6 +51,7 @@ const Index = () => {
   const [isHomeworkModalOpen, setIsHomeworkModalOpen] = useState(false);
   const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
   const [isFactsOverlayOpen, setIsFactsOverlayOpen] = useState(false);
+  const [isQuizOverlayOpen, setIsQuizOverlayOpen] = useState(false);
 
   // Facts functionality
   const {
@@ -56,10 +60,24 @@ const Index = () => {
     isNextFactLoading,
     initializeFacts,
     getNextFact,
+    refreshFacts,
     tellMeMore,
     shouldShowFactsToday,
     markFactsAsShown
   } = useDailyFacts();
+  
+  // Quiz functionality
+  const {
+    quizState,
+    isLoading: isQuizLoading,
+    hasAnswered,
+    selectedAnswer,
+    isCorrect,
+    initializeQuiz,
+    refreshQuiz,
+    submitAnswer,
+    shouldShowQuizToday
+  } = useDailyQuiz();
 
   // Initialize tracking hooks
   const { getMetricsChanges, seedHistoricalData } = useMetricsTracking();
@@ -196,21 +214,26 @@ const Index = () => {
     }
   }, [user?.id, subjects.length, seedHistoricalData]);
 
-  // Initialize facts and show overlay on first visit
+  // Initialize facts and quiz, show overlays on first visit
   useEffect(() => {
     const initFacts = async () => {
       if (user?.id && !loading) {
         await initializeFacts();
+        await initializeQuiz();
         
-        // Show facts overlay if it's the first visit today
-        if (shouldShowFactsToday()) {
+        // Show quiz overlay first (if needed)
+        if (shouldShowQuizToday()) {
+          setIsQuizOverlayOpen(true);
+        }
+        // Only show facts if quiz is not showing or has been answered
+        else if (shouldShowFactsToday()) {
           setIsFactsOverlayOpen(true);
         }
       }
     };
     
     initFacts();
-  }, [user?.id, loading, initializeFacts, shouldShowFactsToday]);
+  }, [user?.id, loading, initializeFacts, initializeQuiz, shouldShowFactsToday, shouldShowQuizToday]);
 
   // Handle facts overlay close
   const handleFactsClose = () => {
@@ -219,7 +242,8 @@ const Index = () => {
   };
 
   // Handle manual facts open
-  const handleFactsOpen = () => {
+  const handleFactsOpen = async () => {
+    await refreshFacts();
     setIsFactsOverlayOpen(true);
   };
 
@@ -231,6 +255,24 @@ const Index = () => {
   // Handle tell me more
   const handleTellMeMore = () => {
     tellMeMore();
+  };
+  
+  // Quiz handlers
+  const handleQuizClose = () => {
+    // Only allow closing if the quiz has been answered
+    if (hasAnswered) {
+      setIsQuizOverlayOpen(false);
+      
+      // Show facts after quiz if needed
+      if (shouldShowFactsToday()) {
+        setIsFactsOverlayOpen(true);
+        markFactsAsShown();
+      }
+    }
+  };
+  
+  const handleSubmitAnswer = (answer) => {
+    submitAnswer(answer);
   };
 
   // Fetch topics for all subjects
@@ -390,7 +432,41 @@ const Index = () => {
       <div className="container mx-auto px-4 py-6 space-y-6">
 
         {/* Welcome Banner */}
-        <WelcomeBanner studentName={studentName} t={t} />
+        <WelcomeBanner studentName={studentName} t={t}>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1.5 text-xs h-9 bg-white/90 text-gray-800 border-white hover:bg-white hover:text-gray-900 focus-visible:ring-white/40"
+              onClick={() => {
+                setIsQuizOverlayOpen(true);
+                // Generate new question each time
+                refreshQuiz();
+              }}
+            >
+              <BrainCircuit className="h-3.5 w-3.5 text-blue-600" />
+              Daily Quiz {!hasAnswered && '🔴'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1.5 text-xs h-9 bg-white/90 text-gray-800 border-white hover:bg-white hover:text-gray-900 focus-visible:ring-white/40"
+              onClick={handleFactsOpen}
+            >
+              <Lightbulb className="h-3.5 w-3.5 text-yellow-600" />
+              Daily Facts
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1.5 text-xs h-9 bg-white/90 text-gray-800 border-white hover:bg-white hover:text-gray-900 focus-visible:ring-white/40"
+              onClick={() => setIsSubjectsModalOpen(true)}
+            >
+              <BookOpen className="h-3.5 w-3.5 text-blue-600" />
+              Subjects
+            </Button>
+          </div>
+        </WelcomeBanner>
         
         {/* Time Period Selector */}
         {(subjects.length > 0 || tasks.length > 0) && (
@@ -548,9 +624,22 @@ const Index = () => {
         isOpen={isFactsOverlayOpen}
         onClose={handleFactsClose}
         fact={currentFact}
-        isLoading={isNextFactLoading}
+        isLoading={isFactsLoading}
         onTellMeMore={handleTellMeMore}
         onNextFact={handleNextFact}
+      />
+      
+      {/* Quiz Overlay */}
+      <QuizOverlay
+        isOpen={isQuizOverlayOpen}
+        onClose={handleQuizClose}
+        question={quizState?.question || null}
+        isLoading={isQuizLoading}
+        onSubmitAnswer={handleSubmitAnswer}
+        hasAnswered={hasAnswered}
+        selectedAnswer={selectedAnswer}
+        isCorrect={isCorrect}
+        onRefresh={refreshQuiz}
       />
     </div>
   );

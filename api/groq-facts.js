@@ -59,6 +59,16 @@ export default async function handler(req, res) {
     if (!groqResponse.ok) {
       const errorText = await groqResponse.text();
       console.error('Groq API error:', errorText);
+      
+      // Check if it's a rate limit error
+      if (errorText.includes('rate_limit_exceeded') || errorText.includes('Rate limit reached')) {
+        return res.status(429).json({ 
+          error: 'Rate limit exceeded', 
+          message: 'API rate limit reached. Please try again later or use fallback content.',
+          useCache: true
+        });
+      }
+      
       return res.status(500).json({ error: 'Failed to generate content' });
     }
 

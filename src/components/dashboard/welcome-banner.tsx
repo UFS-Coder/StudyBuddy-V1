@@ -1,9 +1,10 @@
 interface WelcomeBannerProps {
   studentName: string;
   t: any;
+  children?: React.ReactNode;
 }
 
-export function WelcomeBanner({ studentName, t }: WelcomeBannerProps) {
+export function WelcomeBanner({ studentName, t, children }: WelcomeBannerProps) {
   return (
     <div className="bg-gradient-academic rounded-xl p-6 text-primary-foreground shadow-academic">
       <div className="flex items-center gap-2 mb-2">
@@ -15,6 +16,7 @@ export function WelcomeBanner({ studentName, t }: WelcomeBannerProps) {
       <p className="text-primary-foreground/80">
         {t.welcomeMessage}
       </p>
+      {children}
     </div>
   );
 }

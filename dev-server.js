@@ -12,11 +12,12 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json());
 
-// Import the API handlers
-import groqFactsHandler from './api/groq-facts.js';
-import groqChatHandler from './api/groq-chat.js';
-import generatePracticeQuestionsHandler from './api/generate-practice-questions.js';
-import smartifyHandler from './api/notes/smartify.js';
+// Import the API handlers after loading env (dynamic to ensure .env is loaded first)
+const { default: groqFactsHandler } = await import('./api/groq-facts.js');
+const { default: groqChatHandler } = await import('./api/groq-chat.js');
+const { default: groqQuizHandler } = await import('./api/groq-quiz.js');
+const { default: generatePracticeQuestionsHandler } = await import('./api/generate-practice-questions.js');
+const { default: smartifyHandler } = await import('./api/notes/smartify.js');
 
 // Convert Vercel handler to Express middleware
 app.post('/api/groq-facts', async (req, res) => {
@@ -72,6 +73,35 @@ app.post('/api/groq/chat/completions', async (req, res) => {
     await groqChatHandler(mockReq, mockRes);
   } catch (error) {
     console.error('Groq Chat API Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add groq quiz endpoint
+app.post('/api/groq-quiz', async (req, res) => {
+  // Create a mock Vercel-like req/res object
+  const mockReq = {
+    method: req.method,
+    body: req.body,
+    headers: req.headers
+  };
+  
+  const mockRes = {
+    setHeader: (key, value) => res.setHeader(key, value),
+    status: (code) => {
+      res.status(code);
+      return {
+        json: (data) => res.json(data),
+        end: () => res.end()
+      };
+    },
+    json: (data) => res.json(data)
+  };
+  
+  try {
+    await groqQuizHandler(mockReq, mockRes);
+  } catch (error) {
+    console.error('Groq Quiz API Error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
